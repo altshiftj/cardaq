@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cardaq"
+version = "0.1.0"
+description = "Vehicle data acquisition and diagnostics tools"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["pyserial==3.5"]
+
+[project.scripts]
+cardaq = "cardaq.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"cardaq.viewer" = ["*.html", "*.css", "*.js"]

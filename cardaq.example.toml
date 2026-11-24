@@ -1,0 +1,5 @@
+[serial]
+# Set the port shown by `uv run --locked cardaq ports`.
+# port = "COM5"
+baudrate = 115200
+timeout = 2.0

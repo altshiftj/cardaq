@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Drive comparison | CarDAQ</title>
+  <style>
+__VIEWER_CSS__
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        CarDAQ
+      </div>
+      <span class="masthead-label">Vehicle telemetry</span>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <div class="page-heading">
+      <h1>Drive comparison</h1>
+      <p>Compare each signal by elapsed time from the start of recording.</p>
+    </div>
+    <p id="viewer-error" class="viewer-error" role="alert" hidden></p>
+    <noscript><p class="viewer-error">Enable JavaScript to view the capture graphs.</p></noscript>
+
+    <section id="drive-list" class="drive-list" aria-label="Recording summaries"></section>
+
+    <section class="explorer" aria-labelledby="metric-title">
+      <div class="explorer-heading">
+        <div class="metric-heading">
+          <h2 id="metric-title">Signal explorer</h2>
+          <p id="metric-description"></p>
+        </div>
+        <div class="chart-controls">
+          <label for="metric">Metric
+            <select id="metric"></select>
+          </label>
+          <label for="window">Time window
+            <select id="window">
+              <option value="full">Entire recording</option>
+              <option value="60">First minute</option>
+              <option value="120">First 2 minutes</option>
+              <option value="300">First 5 minutes</option>
+              <option value="600">First 10 minutes</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="main-canvas">
+        <canvas id="main-chart" tabindex="0" aria-label="Selected signal chart" aria-describedby="chart-instructions">
+          Use the recording summaries and values below to compare the selected signal.
+        </canvas>
+      </div>
+      <p id="chart-instructions" class="chart-instructions">Gaps indicate missing samples. Hover or tap to inspect values, or focus the chart and use the arrow keys.</p>
+      <div id="metric-stats" class="metric-stats" role="group" aria-label="Selected signal statistics"></div>
+    </section>
+
+    <section class="quick-looks-section" aria-labelledby="quick-looks-title">
+      <h2 id="quick-looks-title">Quick looks</h2>
+      <div id="quick-looks" class="quick-looks"></div>
+    </section>
+  </main>
+
+  <template id="quick-card-template">
+    <article class="quick-card">
+      <h3><button type="button" class="quick-title"></button></h3>
+      <div class="quick-canvas"><canvas role="img"></canvas></div>
+      <div class="quick-summary"></div>
+    </article>
+  </template>
+  <script type="application/json" id="capture-data">__VIEWER_DATA__</script>
+  <script>
+__VIEWER_CHART__
+  </script>
+  <script>
+__VIEWER_APP__
+  </script>
+</body>
+</html>
