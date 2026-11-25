@@ -3,6 +3,7 @@
 import argparse
 import sys
 from collections.abc import Sequence
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .adapter import AdapterError, available_ports, identify
@@ -14,6 +15,11 @@ from .viewer import write_viewer
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="cardaq", description="Vehicle data acquisition tools.")
+    try:
+        release = version("cardaq")
+    except PackageNotFoundError:
+        release = "unknown (uninstalled source tree)"
+    parser.add_argument("--version", action="version", version=f"%(prog)s {release}")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("ports", help="list serial ports without opening them")
     identify_parser = commands.add_parser("identify", help="read OBDLink hardware and firmware IDs")

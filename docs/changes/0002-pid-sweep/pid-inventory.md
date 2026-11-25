@@ -64,7 +64,7 @@ The ECM advertised 44 data PIDs and the TCM advertised 14, all shared with the E
 | `0180` | `0004000F` | |
 | `01A0` | `04000000` | |
 
-The sample verified one supported mass airflow channel (`66`, ECM flags `01`), one intake air temperature channel (`68`, ECM flags `01`), and two coolant channels per ECU (`67`, flags `03`). Throttle PID `6C` reported two fields for the ECM (`03`) and one for the TCM (`02`). Each of these PIDs can carry multiple fields, and the exact definition of OBDwiz's 80 and 24 selector counts remains open. [OBDwiz channel definitions](https://www.obdlink.com/obd-apps/obdwiz-app/) · [SAE J1979 digital annex, tables B82–B84 and B88](https://zpost.com/forums/attachment.php?attachmentid=1460101&d=1468796937&s=792c484ee079d2d205539aa7012025a7)
+The sample verified one supported mass airflow channel (`66`, ECM flags `01`), one intake air temperature channel (`68`, ECM flags `01`), and two coolant channels per ECU (`67`, flags `03`). Throttle PID `6C` reported two fields for the ECM (`03`) and one for the TCM (`02`). Each of these PIDs can carry multiple fields, and the exact definition of OBDwiz's 80 and 24 selector counts remains open. [OBDwiz channel definitions](https://www.obdlink.com/obd-apps/obdwiz-app/) · [SAE J1979 digital annex](https://doi.org/10.4271/J1979DA_201905)
 
 ### OBDwiz PID Setup screenshots
 

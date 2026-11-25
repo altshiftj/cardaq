@@ -1,14 +1,21 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cardaq"
 version = "0.1.0"
-description = "Vehicle data acquisition and diagnostics tools"
+description = "Record OBD-II telemetry and explore Honda Civic drive logs in an offline viewer"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT AND CC-BY-SA-4.0"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "LICENSES/CC-BY-SA-4.0.txt"]
+keywords = ["obd-ii", "obdlink", "honda", "vehicle-telemetry"]
 dependencies = ["pyserial==3.5"]
+
+[project.urls]
+Repository = "https://github.com/altshiftj/cardaq"
+Issues = "https://github.com/altshiftj/cardaq/issues"
 
 [project.scripts]
 cardaq = "cardaq.cli:main"

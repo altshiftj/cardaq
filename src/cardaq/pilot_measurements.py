@@ -1,5 +1,6 @@
 """Decode selected measurements from the Civic pilot's raw diagnostic replies."""
 
+from .honda_fields import HONDA_FIELDS
 from .obd_frames import _compact_hex, _single_frame, coolant_temperatures
 
 
@@ -11,23 +12,6 @@ _STANDARD_MEASUREMENTS = {
     b"0133": ("barometric_pressure_kpa", 1, 1),
     b"0142": ("control_module_voltage_v", 2, 1000),
 }
-_HONDA_2301 = {
-    "honda_vehicle_speed_kph": (4, 1, 0),
-    "honda_engine_speed_rpm": (7, 2, 0),
-    "candidate_drive_pulley_rpm": (9, 2, 0),
-    "candidate_driven_pulley_rpm": (11, 2, 0),
-    "candidate_honda_manifold_pressure_kpa": (22, 1, 0),
-    "candidate_honda_barometric_pressure_kpa": (24, 1, 0),
-    "candidate_cvt_fluid_temperature_sensor_raw": (25, 1, 0),
-    "candidate_cvt_fluid_temperature_c": (26, 1, -40),
-}
-_HONDA_2322 = {
-    "honda_vehicle_speed_kph": (4, 1, 0),
-    "candidate_secondary_shaft_1_rpm": (9, 2, 0),
-    "candidate_torque_converter_turbine_rpm": (13, 2, 0),
-    "candidate_secondary_shaft_2_rpm": (15, 2, 0),
-}
-_HONDA_MEASUREMENTS = {b"222301": _HONDA_2301, b"222322": _HONDA_2322}
 MEASUREMENT_COLUMNS = (
     *(
         f"{ecu}_{name}"
@@ -39,8 +23,7 @@ MEASUREMENT_COLUMNS = (
         for ecu in _ECUS.values()
         for sensor in (1, 2)
     ),
-    *_HONDA_2301,
-    *(name for name in _HONDA_2322 if name not in _HONDA_2301),
+    *dict.fromkeys(name for fields in HONDA_FIELDS.values() for name in fields),
 )
 
 
@@ -69,12 +52,12 @@ def pilot_measurements(command: bytes, reply: tuple[bytes, ...]) -> dict[str, in
                 raw = int.from_bytes(payload[2:], "big")
                 values[f"{_ECUS[address]}_{name}"] = raw if divisor == 1 else raw / divisor
         return values
-    if command in _HONDA_MEASUREMENTS:
+    if command in HONDA_FIELDS:
         data = _honda_data(command, reply)
         if data is not None:
             return {
                 name: int.from_bytes(data[offset:offset + length], "big") + adjustment
-                for name, (offset, length, adjustment) in _HONDA_MEASUREMENTS[command].items()
+                for name, (offset, length, adjustment) in HONDA_FIELDS[command].items()
             }
     return {}
 

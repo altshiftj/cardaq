@@ -23,7 +23,7 @@ The goal is to capture key-on, engine start, and a roughly 30-minute commute in 
 
 ## Recorder commands
 
-I’ll launch the recorder as a local background process. To start it yourself while parked, use this foreground command from `C:\Repos\Github\cardaq` in PowerShell. Replace the example note with the reported observations. Wait for `Ready` at 0 RPM before cranking.
+I’ll launch the recorder as a local background process. To start it yourself while parked, use this foreground command from the repository root in PowerShell. Replace the example note with the reported observations. Wait for `Ready` at 0 RPM before cranking.
 
 ```powershell
 .\.venv\Scripts\python.exe -m cardaq record --port COM5 --duration 2700 `
