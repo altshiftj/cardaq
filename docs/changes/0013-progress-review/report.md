@@ -1,0 +1,26 @@
+# CarDAQ progress report · November 24, 2026
+
+CarDAQ can follow a drive from a raw diagnostic reply to an explained chart and then to a comparison with earlier trips. The next milestone is to learn what is repeatable on this Civic before its planned 5,000-mile service. The highest-value software change is to make it visible which trips contribute to each comparison and what changed between them. [Development roadmap](../../ROADMAP.md)
+
+## What works today
+
+| Area | Working capability | Evidence and limits |
+| --- | --- | --- |
+| Recording | Six CLI commands cover adapter discovery, identification, vehicle queries, recording, viewing and health history. The recorder keeps raw replies, timestamps and communication gaps. | The USB OBDLink EX and two responding controllers were verified on the 2020 Civic LX 2.0 CVT on Windows. An ignition-off gap can be followed by another drive in the same file. [Sweep results](../0002-pid-sweep/checklist.md) · [Recording guide](../../RECORDINGS.md) |
+| Drive comparison | An offline page overlays trips by time, distance or road-speed band. It links events and calculated signals to related charts, with plain-English guides and optional sensor and math details. | The catalog has 63 entries, including 24 derived signals. The real commute comparison displays 62. Raw data remains available for re-decoding. [Signal inventory](../0009-signal-explainers/checklist.md) · [Viewer verification](../0011-chart-lessons/checklist.md) |
+| Health history | An offline report follows misfire counters and 14 engine and CVT indicators under defined driving conditions. Each qualifying trip contributes one value per indicator. | A 13-trip synthetic test detected a deliberately introduced idle-speed change. Real-trip history has one drive per group. [Health methods](../../HEALTH_HISTORY.md) · [Validation](../0010-longitudinal-health/checklist.md) |
+| Contributions | The repo has a synthetic demo, contributor instructions, MIT terms for original work, attribution for the Honda tables, packaging checks and 11 pre-commit hooks. | The hook and wheel checks passed locally. The current checkout still contains uncommitted implementation and CI files. Hosted CI for these changes remains to be exercised. [Contribution checks](../0012-pre-commit/checklist.md) · [Third-party notices](../../../THIRD_PARTY_NOTICES.md) |
+
+## What the first two commutes can tell us
+
+For this review, all 72 offline tests passed. Running `cardaq view` on the outbound and trimmed return CSVs with their saved notes reproduced the existing commute HTML byte for byte. Running `cardaq health` on the local manifest likewise reproduced the existing JSON. These checks used saved recordings. Hardware findings in this report come from the earlier vehicle sessions.
+
+The comparison uses the outbound drive and the return trimmed at the grocery stop. Both cover about 29.2 km. The outbound was in Drive throughout. The return began in Drive and switched to Sport within about five minutes, according to the driver. The full and trimmed return are the same journey and count once. [Commute comparison checks](../0006-commute-lab/checklist.md)
+
+- **Coverage matters more than the number of charts.** Each trip produced values for 9 of the 14 health indicators. The four that qualified on both drives were warm stopped RPM, its spread, and the two warm stopped fuel corrections. The outbound supplied the lower-RPM cruise readings and the return supplied the higher-RPM readings. Combining directions into one group would hide this difference. [Health report interpretation](../../HEALTH_HISTORY.md)
+- **A counter change is worth following.** Cylinder 2 added three counts outbound. The return began at three, then reset to zero. The other cylinders stayed at zero. The recordings support checking for recurrence. A stored code identifier or a snapshot of engine conditions at the time would give a future occurrence more context. [Monitor verification](../0010-longitudinal-health/checklist.md)
+- **Preheating gives us a testable question.** The engine-side coolant probe began at 46°C outbound and 11°C on the return. The radiator-side probe began at 6°C both times. The morning engine-side reading fell from about 45°C to 40°C shortly after startup. That shows a local temperature change. These probes cannot separate cooler liquid reaching the sensor from heat transferred to the engine metal. Matched outbound starts would let us compare the dip and early fuel use. [Sensor locations and chart guide](../../RECORDINGS.md#compare-recordings)
+
+## Decision for the next milestone
+
+At roughly 3,200 miles, there is still time to gather comparable drives before the planned oil change, transmission-fluid change and winter tires. Start with repeat outbound trips, annotate heater use and service, and run the parked selector experiment. In parallel, make the local build reproducible for contributors. Next, add read-only trouble-code and freeze-frame capture so future anomalies have supporting evidence. Independent CVT calibration, new sensors and unattended hardware can follow when a specific question needs them. [Priorities and completion criteria](../../ROADMAP.md) · [Signal backlog](../../DERIVED_SIGNALS_ROADMAP.md)

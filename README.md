@@ -44,6 +44,8 @@ uv run --locked cardaq health captures/health-history.toml --output captures/hea
 
 The offline report shows observed counts from the first trip and builds per-trip references as comparable drives accumulate. A JSON export is also available. [Manifest example and interpretation guide](docs/HEALTH_HISTORY.md)
 
+The November 24 review summarizes what the two commutes establish and how to build a pre-service baseline from repeat drives. [Project progress report](docs/changes/0013-progress-review/report.md) · [Next milestones](docs/ROADMAP.md)
+
 ## Contribute
 
 The contributor guide covers installing the Git hooks, running the offline tests, and tracing a raw reply to a plotted signal. It also describes the evidence that helps verify a new mapping. [Contributing](CONTRIBUTING.md) · [Development roadmap](docs/ROADMAP.md) · [Derived signal roadmap](docs/DERIVED_SIGNALS_ROADMAP.md)
