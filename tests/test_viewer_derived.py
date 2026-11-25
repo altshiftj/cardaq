@@ -1,4 +1,5 @@
 import unittest
+from math import log
 
 from cardaq.viewer.derived import derive_series
 
@@ -45,3 +46,24 @@ class DerivedSeriesTests(unittest.TestCase):
         original = {"candidate_drive_pulley_rpm": [[1, 0]], "candidate_driven_pulley_rpm": [[1, 200]]}
         self.assertEqual(derive_series(original), {})
         self.assertEqual(original, {"candidate_drive_pulley_rpm": [[1, 0]], "candidate_driven_pulley_rpm": [[1, 200]]})
+
+    def test_cvt_change_rates_add_to_drive_pulley_change_and_skip_gaps(self):
+        results = derive_series({
+            "candidate_drive_pulley_rpm": [[1, 600], [2, 1800], [20, 2000]],
+            "candidate_driven_pulley_rpm": [[1, 500], [2, 1000], [20, 1200]],
+            "honda_vehicle_speed_kph": [[1, 15], [2, 30], [20, 40]],
+        })
+        ratio_time, ratio_rate = results["derived_ratio_change_pct_s"][0]
+        self.assertEqual([t for t, _ in results["derived_ratio_change_pct_s"]], [2])
+        output_time, output_rate = results["derived_output_speed_change_pct_s"][0]
+        self.assertEqual([t for t, _ in results["derived_output_speed_change_pct_s"]], [2])
+        self.assertEqual(ratio_time, output_time)
+        self.assertAlmostEqual(ratio_rate + output_rate, 100 * log(1800 / 600))
+
+    def test_warming_rate_requires_one_minute_of_contiguous_data(self):
+        results = derive_series({"ecm_coolant_sensor_1_c": [
+            [time, 10 + time / 10] for time in (*range(0, 66, 3), *range(90, 156, 3))
+        ]})
+        by_time = dict(results["derived_engine_coolant_warming_rate"])
+        self.assertEqual(sorted(by_time), [60, 63, 150, 153])
+        self.assertAlmostEqual(by_time[60], 6)
