@@ -35,6 +35,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     view_parser.add_argument("captures", type=Path, nargs="+", metavar="CSV")
     view_parser.add_argument("--output", type=Path, required=True, help="path to the generated HTML viewer")
     view_parser.add_argument("--label", action="append", help="drive name (repeat once per CSV)")
+    view_parser.add_argument("--signal-notes", type=Path, help="include per-signal notes for these recordings from JSON")
     for serial_parser in (identify_parser, sweep_parser, record_parser):
         serial_parser.add_argument("--config", type=Path, help="load serial settings from a TOML file")
         serial_parser.add_argument("--port", help="serial device, such as COM5 or /dev/ttyUSB0")
@@ -54,7 +55,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             for device, description in ports:
                 print(f"{device}\t{description}" if description and description != "n/a" else device)
         elif args.command == "view":
-            write_viewer(args.captures, args.output, labels=args.label)
+            write_viewer(args.captures, args.output, labels=args.label, signal_notes=args.signal_notes)
             print(f"Open {args.output.resolve()} in a browser.")
         else:
             settings = serial_settings(

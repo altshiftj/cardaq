@@ -47,6 +47,14 @@
     return Number.isFinite(median) ? Math.max(10, median * 5) : 10;
   }
 
+  function gapBefore(entry, index) {
+    const elapsed = entry.sampleTimes;
+    const interval = elapsed
+      ? elapsed[index] - elapsed[index - 1]
+      : entry.points[index][0] - entry.points[index - 1][0];
+    return entry.segmentBreaks?.has(index) || interval > entry.gap;
+  }
+
   function numericStep(span, target) {
     const roughStep = span / target;
     const base = 10 ** Math.floor(Math.log10(roughStep));
@@ -58,8 +66,9 @@
     let maximum = -Infinity;
     for (const { points, start, end } of series) {
       for (let index = start; index < end; index += 1) {
-        minimum = Math.min(minimum, points[index][1]);
-        maximum = Math.max(maximum, points[index][1]);
+        const [, value, lower = value, upper = value] = points[index];
+        minimum = Math.min(minimum, lower);
+        maximum = Math.max(maximum, upper);
       }
     }
     const hasSamples = Number.isFinite(minimum);
@@ -92,7 +101,8 @@
 
   function pointText(point, unit, formatValue) {
     const value = formatValue(point[1]);
-    return unit ? `${value} ${unit}` : value;
+    const measurement = unit ? `${value} ${unit}` : value;
+    return point[4] ? `${measurement} · n=${point[4]}` : measurement;
   }
 
   function truncate(context, text, width) {
@@ -121,12 +131,13 @@
       }
     }
 
-    render({ series, unit = "", style, formatValue = pointFormatter.format, range }) {
+    render({ series, unit = "", style, formatValue = pointFormatter.format, range, xAxis }) {
       const [start, end] = range;
       this.range = [start, end > start ? end : start + 1];
       this.unit = unit;
       this.style = style;
       this.formatValue = formatValue;
+      this.xAxis = xAxis;
       this.series = series.map((entry, index) => {
         const { points } = entry;
         return {
@@ -134,7 +145,8 @@
           dashed: entry.dashed ?? index % 2 === 1,
           start: lowerBound(points, this.range[0]),
           end: lowerBound(points, this.range[1], true),
-          gap: gapThreshold(points),
+          gap: this.xAxis?.bucketWidth ?? gapThreshold(entry.sourcePoints ?? points),
+          markOffset: style === "binned" ? (index - (series.length - 1) / 2) * 5 : 0,
         };
       });
       this.cursor = null;
@@ -162,7 +174,7 @@
         const y = (event.clientY - bounds.top) * this.height / bounds.height;
         const { left, right, top, bottom } = this.plot;
         this.cursor = x >= left && x <= right && y >= top && y <= bottom
-          ? this.range[0] + (x - left) / (right - left) * (this.range[1] - this.range[0])
+          ? this.snapCursor(this.range[0] + (x - left) / (right - left) * (this.range[1] - this.range[0]))
           : null;
         this.queuePaint();
       };
@@ -179,8 +191,11 @@
     handleCursorKey(event) {
       if (!this.range) return;
       const [start, end] = this.range;
-      const step = (end - start) * (event.shiftKey ? 0.05 : 0.01);
-      const cursor = this.cursor ?? start;
+      const bucket = this.xAxis?.bucketWidth;
+      const step = bucket
+        ? bucket * (event.shiftKey ? 3 : 1)
+        : (end - start) * (event.shiftKey ? 0.05 : 0.01);
+      const cursor = this.cursor ?? (bucket ? start - step : start);
       switch (event.key) {
         case "ArrowLeft":
         case "ArrowDown": this.cursor = Math.max(start, cursor - step); break;
@@ -191,8 +206,21 @@
         case "Escape": this.cursor = null; break;
         default: return;
       }
+      if (this.cursor !== null) this.cursor = this.snapCursor(this.cursor);
       event.preventDefault();
       this.queuePaint();
+    }
+
+    snapCursor(position) {
+      const width = this.xAxis?.bucketWidth;
+      if (!width) return position;
+      const [start, end] = this.range;
+      const center = start + (Math.floor((position - start) / width) + 0.5) * width;
+      return Math.max(start + width / 2, Math.min(end - width / 2, center));
+    }
+
+    cursorText(value) {
+      return this.xAxis ? this.xAxis.formatCursor(value) : timeText(value, true);
     }
 
     clearCursor() {
@@ -217,7 +245,7 @@
         const left = next - 1;
         const nextDistance = next >= start && next < end ? points[next][0] - this.cursor : Infinity;
         const leftDistance = left >= start && left < end ? this.cursor - points[left][0] : Infinity;
-        const sample = Math.min(nextDistance, leftDistance) <= gap / 2
+        const sample = Math.min(nextDistance, leftDistance) <= (this.xAxis?.cursorTolerance ?? gap / 2)
           ? points[leftDistance <= nextDistance ? left : next]
           : null;
         return { ...entry, sample };
@@ -227,13 +255,13 @@
     updateAccessibleCursor(samples = []) {
       this.canvas.setAttribute("aria-valuenow", this.cursor ?? this.range[0]);
       if (this.cursor === null) {
-        this.canvas.setAttribute("aria-valuetext", "Use the arrow keys to inspect readings over time");
+        this.canvas.setAttribute("aria-valuetext", "Use the arrow keys to inspect readings");
         return;
       }
       const description = samples.map(({ label, sample }) => sample
-        ? `${label}, ${pointText(sample, this.unit, this.formatValue)} at ${timeText(sample[0], true)}`
+        ? `${label}, ${pointText(sample, this.unit, this.formatValue)} at ${this.cursorText(sample[0])}`
         : `${label}, no nearby sample`);
-      this.canvas.setAttribute("aria-valuetext", [timeText(this.cursor, true), ...description].join(". "));
+      this.canvas.setAttribute("aria-valuetext", [this.cursorText(this.cursor), ...description].join(". "));
     }
 
     drawBackground() {
@@ -277,7 +305,10 @@
         context.fillStyle = colors.label;
         context.textAlign = "center";
         context.textBaseline = "middle";
-        context.fillText("No samples in this time range", width / 2, height / 2);
+        let emptyMessage = "No samples in this time range";
+        if (this.style === "binned") emptyMessage = "No speed bands with enough samples";
+        else if (this.xAxis) emptyMessage = "No samples with observed distance";
+        context.fillText(emptyMessage, width / 2, height / 2);
       }
       this.paint();
     }
@@ -286,8 +317,10 @@
       const { left, right, top, bottom, x, y } = this.plot;
       const [start, end] = this.range;
       const target = Math.max(2, Math.floor((right - left) / (this.interactive ? 95 : 65)));
-      const step = timeSteps.find((interval) => interval >= (end - start) / target)
-        ?? numericStep(end - start, target);
+      const step = this.xAxis
+        ? Math.max(this.xAxis.bucketWidth ?? 0, numericStep(end - start, target))
+        : timeSteps.find((interval) => interval >= (end - start) / target)
+          ?? numericStep(end - start, target);
       context.lineWidth = 1;
       context.textBaseline = "middle";
       context.fillStyle = colors.label;
@@ -305,7 +338,7 @@
       for (let index = firstTick; index <= lastTick; index += 1) {
         const tick = index * step;
         const column = x(tick);
-        const label = timeText(tick, step < 1);
+        const label = this.xAxis ? formatNumber(tick, step) : timeText(tick, step < 1);
         const halfWidth = context.measureText(label).width / 2;
         const labelX = Math.min(right - halfWidth, Math.max(left, column));
         context.moveTo(column, top);
@@ -325,20 +358,23 @@
       context.fillText(this.unit, left, 9);
       if (this.interactive) {
         context.textAlign = "center";
-        context.fillText("Elapsed time in min:sec", (left + right) / 2, this.height - 8);
+        context.fillText(this.xAxis?.label ?? "Elapsed time in min:sec", (left + right) / 2, this.height - 8);
       }
     }
 
     drawSeries(context, entry) {
-      const { points, start, end, gap } = entry;
+      if (this.style === "binned") {
+        this.drawBins(context, entry);
+        return;
+      }
+      const { points, start, end } = entry;
       if (start === end) return;
       const { x, y } = this.plot;
-      const first = start > 0 && start < points.length && points[start][0] - points[start - 1][0] <= gap
+      const first = start > 0 && start < points.length && !gapBefore(entry, start)
         ? start - 1 : start;
-      const stop = end > 0 && end < points.length && points[end][0] - points[end - 1][0] <= gap
+      const stop = end > 0 && end < points.length && !gapBefore(entry, end)
         ? end + 1 : end;
       const isolated = [];
-      let previousTime = -Infinity;
       let previousValue;
       let segmentLength = 0;
       context.beginPath();
@@ -347,7 +383,7 @@
       context.lineCap = "round";
       for (let index = first; index < stop; index += 1) {
         const [time, value] = points[index];
-        if (time - previousTime > gap) {
+        if (index === first || gapBefore(entry, index)) {
           if (segmentLength === 1) isolated.push(index - 1);
           context.moveTo(x(time), y(value));
           segmentLength = 1;
@@ -356,7 +392,6 @@
           context.lineTo(x(time), y(value));
           segmentLength += 1;
         }
-        previousTime = time;
         previousValue = value;
       }
       context.stroke();
@@ -366,6 +401,33 @@
         const [time, value] = points[index];
         context.beginPath();
         context.arc(x(time), y(value), 2, 0, 2 * Math.PI);
+        context.fill();
+      }
+    }
+
+    drawBins(context, entry) {
+      const { x, y } = this.plot;
+      const { points, start, end, markOffset, color, dashed } = entry;
+      context.fillStyle = context.strokeStyle = color;
+      context.lineWidth = 1.5;
+      for (let index = start; index < end; index += 1) {
+        const [center, median, lower, upper] = points[index];
+        const column = x(center) + markOffset;
+        const top = y(upper);
+        const bottom = y(lower);
+        context.globalAlpha = 0.56;
+        context.beginPath();
+        context.moveTo(column - 3, top);
+        context.lineTo(column + 3, top);
+        context.moveTo(column, top);
+        context.lineTo(column, bottom);
+        context.moveTo(column - 3, bottom);
+        context.lineTo(column + 3, bottom);
+        context.stroke();
+        context.globalAlpha = 1;
+        context.beginPath();
+        if (dashed) context.rect(column - 3, y(median) - 3, 6, 6);
+        else context.arc(column, y(median), 3.5, 0, 2 * Math.PI);
         context.fill();
       }
     }
@@ -396,10 +458,10 @@
       context.lineTo(column, bottom);
       context.stroke();
       context.setLineDash([]);
-      for (const { color, sample } of samples) {
+      for (const { color, markOffset, sample } of samples) {
         if (!sample) continue;
         context.beginPath();
-        context.arc(x(sample[0]), y(sample[1]), 4, 0, 2 * Math.PI);
+        context.arc(x(sample[0]) + markOffset, y(sample[1]), 4, 0, 2 * Math.PI);
         context.fillStyle = color;
         context.fill();
         context.strokeStyle = colors.panel;
@@ -427,7 +489,8 @@
       context.font = `600 13px ${font}`;
       context.textAlign = "left";
       context.fillStyle = colors.text;
-      context.fillText(`${timeText(this.cursor, true)} elapsed`, boxLeft + 12, boxTop + 16);
+      const heading = this.xAxis ? this.cursorText(this.cursor) : `${this.cursorText(this.cursor)} elapsed`;
+      context.fillText(heading, boxLeft + 12, boxTop + 16);
 
       samples.forEach((entry, index) => {
         const row = boxTop + 38 + index * 25;

@@ -1,10 +1,13 @@
+import hashlib
 import json
 import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from cardaq.viewer import write_viewer
+from cardaq.pilot_measurements import MEASUREMENT_COLUMNS
+from cardaq.viewer import _VIEWER_METRICS, _metric, write_viewer
+from cardaq.viewer.recorded import RECORDED_GUIDES
 
 
 SPEED = "ecm_vehicle_speed_kph"
@@ -26,6 +29,17 @@ class ViewerTests(unittest.TestCase):
         script = re.search(r'<script\b[^>]*\bid="capture-data"[^>]*>(.*?)</script>', html, re.DOTALL)
         self.assertIsNotNone(script)
         return json.loads(script[1])
+
+    def test_every_selectable_metric_explains_the_measurement_and_its_interpretation(self) -> None:
+        self.assertEqual(set(RECORDED_GUIDES), set(MEASUREMENT_COLUMNS))
+        for column in (*MEASUREMENT_COLUMNS, *_VIEWER_METRICS):
+            with self.subTest(column=column):
+                metric = _metric(column)
+                self.assertTrue(metric["description"].strip())
+                self.assertTrue(metric["interpretation"].strip())
+                self.assertNotEqual(metric["description"], metric["interpretation"])
+                for field in ("plain", "source", "reading", "caution"):
+                    self.assertTrue(metric["lesson"][field].strip())
 
     def test_embeds_sparse_readings_for_each_drive_in_elapsed_order(self) -> None:
         work = self.capture(
@@ -49,7 +63,7 @@ class ViewerTests(unittest.TestCase):
         data = self.data()
         self.assertEqual(set(data["metrics"]), {SPEED, COOLANT})
         for metric in data["metrics"].values():
-            self.assertTrue({"label", "unit", "description"} <= metric.keys())
+            self.assertTrue({"label", "unit", "description", "interpretation"} <= metric.keys())
         first, second = data["drives"]
         self.assertEqual(first["name"], "To work")
         self.assertTrue(first["started"])
@@ -112,3 +126,41 @@ class ViewerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             write_viewer([html_input], html_input)
         self.assertEqual(html_input.read_bytes(), original)
+
+    def test_notes_belong_to_the_recording_contents_and_input_order(self) -> None:
+        paths = [self.capture(f"drive-{i}.csv", f"elapsed_s,{SPEED}\n0,{i}\n") for i in (1, 2)]
+        notes = self.directory / "notes.json"
+        note = "The second drive was faster. </script>"
+        document = {
+            "recording_sha256": [hashlib.sha256(path.read_bytes()).hexdigest().upper() for path in paths],
+            "signals": {SPEED: note},
+        }
+        notes.write_text(json.dumps(document), encoding="utf-8")
+        write_viewer(paths, self.output, signal_notes=notes)
+        self.assertEqual(self.data()["comparisonNotes"], {SPEED: note})
+        self.assertNotIn(note, self.output.read_text(encoding="utf-8"))
+        original = self.output.read_bytes()
+        with self.assertRaisesRegex(ValueError, "input order"):
+            write_viewer(paths[::-1], self.output, signal_notes=notes)
+        for signals in ({"unknown": note}, {SPEED: ""}, {SPEED: 123}):
+            notes.write_text(json.dumps({**document, "signals": signals}), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                write_viewer(paths, self.output, signal_notes=notes)
+        self.assertEqual(self.output.read_bytes(), original)
+
+    def test_backfills_fuel_and_publishes_round_trip_summary(self) -> None:
+        reply = "18 DA F1 10 06 41 9D 00 32 00 32"
+        capture = self.capture(
+            "fuel.csv",
+            f"elapsed_s,request_elapsed_s,event,request,reply,{SPEED}\n"
+            f"0.1,0.05,reply,019D,{reply},36\n"
+            "0.5,0.4,no_data,010D,NO DATA,\n"
+            f"1.1,1.05,reply,019D,{reply},36\n",
+        )
+        write_viewer([capture], self.output)
+        data = self.data()
+        drive = data["drives"][0]
+        self.assertEqual(drive["series"]["ecm_engine_fuel_rate_g_s"], [[0.1, 1], [1.1, 1]])
+        self.assertEqual(drive["series"]["observed_reply_latency_ms"], [[0, 50], [1, 50]])
+        self.assertAlmostEqual(drive["summary"]["distanceKm"], 0.01)
+        self.assertAlmostEqual(drive["summary"]["fuelGrams"], 1)
