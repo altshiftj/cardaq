@@ -1,54 +1,51 @@
-# cardaq
+# CarDAQ
 
-`cardaq` is a Python vehicle data acquisition and diagnostics project for a 2020 Honda Civic LX sedan with a 2.0 L engine and CVT. It starts on Windows and targets Linux on a Raspberry Pi for later deployment.
+CarDAQ records OBD-II data to CSV and turns one or more recordings into an interactive HTML dashboard. Compare two drives at the same road speed, see how long the coolant took to warm up, or select a stop to inspect the samples around it. The viewer runs locally in a browser.
 
-The initial CLI lists operating system serial ports and reads an OBDLink adapter's hardware and firmware IDs with the documented `STDI` and `STI` commands. Adapter identification has been verified on Windows with a USB OBDLink EX. [OBDLink programming manual](https://www.scantool.net/scantool/downloads/682/obdlink_frpm_f.pdf)
+The recorder was developed on a **2020 Honda Civic LX sedan, 2.0 L with CVT**, using a **USB OBDLink EX on Windows**. It reads standard engine data and two Honda transmission identifiers. The viewer and test suite run without a vehicle. [Hardware verification](docs/changes/0002-pid-sweep/report.md#physical-validation-and-obdwiz-comparison)
 
-## Install
+## Try the viewer
 
-Install uv, then run the following from the repository root on Windows or Linux. uv creates `.venv` with a compatible Python interpreter and installs CarDAQ using `uv.lock`. The project requires Python 3.11 or later. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+From the repository root, use uv with Python 3.11 or later. The generator creates two fictional three-minute trips with identical road speeds, different starting coolant temperatures, and different engine RPM. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-```text
+```sh
 uv sync --locked
+uv run --locked python examples/generate_demo.py
+uv run --locked cardaq view captures/demo/synthetic-cool.csv captures/demo/synthetic-warm.csv --label "Cool start" --label "Warm start" --output captures/demo/comparison.html
 ```
 
-## Use the CLI
+Open `captures/demo/comparison.html` in your browser. Select **Engine speed · ECM** and switch the horizontal axis to **Observed distance**. Both trips cover 1.92 km, but the warm-start example turns about 920 more engine revolutions. In the **Trip notebook**, select a launch to zoom in on the readings around it.
 
-```text
+![Engine speed over time for the two synthetic drives, with the warm-start trace above the cool-start trace while moving.](docs/images/signal-explorer.png)
+
+To compare your own drives, pass their CSV paths to `cardaq view`. Supply one `--label` per file or let the viewer use the filenames. Each HTML export embeds the selected drives and works offline. [Capture format and viewer guide](docs/RECORDINGS.md)
+
+## Record a drive
+
+Connect the adapter, close other applications using it, and find its serial port. Replace `COM5` below with the listed device. The recording command uses the Civic-specific polling profile.
+
+```sh
 uv run --locked cardaq ports
 uv run --locked cardaq identify --port COM5
-uv run --locked cardaq identify --port /dev/ttyUSB0 --baudrate 115200 --timeout 2
 uv run --locked cardaq sweep --port COM5
-uv run --locked cardaq sweep --port COM5 --sample
-uv run --locked cardaq record --port COM5 --duration 2700 --output captures/civic_pilot.csv
+uv run --locked cardaq record --port COM5 --duration 2700 --output captures/drive.csv
+uv run --locked cardaq view captures/drive.csv --output captures/drive.html
 ```
 
-Choose the adapter's port from the list and close OBDwiz before identifying it. The default baud rate is 115200, the documented default for USB OBDLink adapters. Serial access depends on the adapter model and how it connects. An OBDLink CX uses Bluetooth Low Energy and requires a BLE transport when it has no OS serial port. [OBDLink programming manual](https://www.scantool.net/scantool/downloads/682/obdlink_frpm_f.pdf) · [OBDLink CX developer notes](https://support.obdlink.com/support/solutions/articles/43000746707-obdlink-cx-adapter-notes)
+Start the recorder while parked and wait for its `Ready` message. Use a fresh CSV filename for each recording. Turning the ignition off can leave the process retrying until the duration expires. Once parked, press Ctrl+C to finish early. The recording guide covers the stop file, serial settings, supported signals, and missing data. [Recording guide](docs/RECORDINGS.md) · [Example serial configuration](cardaq.example.toml)
 
-`sweep` lists the standard Mode 01 data PIDs advertised by each CAN response ID. Disconnect OBDwiz from the adapter before running it. With `--sample`, the sweep sends one read request for each distinct advertised PID, prints the raw replies, and decodes supported coolant sensors under PID `67`. [PID sweep checklist](docs/changes/0002-pid-sweep/checklist.md)
+## Track one vehicle over time
 
-`record` streams the Civic's raw diagnostic replies and selected decoded values to a new CSV. It includes the known standard live data and two Honda CVT requests. [Civic pilot runbook](docs/changes/0003-civic-pilot/plan.md)
+`cardaq health` follows cylinder misfire counters, closed-loop fuel trims, warm idle RPM and coolant, and candidate CVT slip and ratio movement under comparable cruise conditions. Add each independent drive to a local TOML manifest. Give it a comparison group such as outbound in Drive, and record relevant changes in mode or maintenance.
 
-## View recorded drives
-
-```text
-uv run --locked cardaq view captures/civic_20261124_0806_pilot.csv captures/civic_drive_home_261124.csv --label "To work" --label "Home" --output captures/drive-viewer.html
+```sh
+uv run --locked cardaq health captures/health-history.toml --output captures/health-history.html
 ```
 
-Open `captures/drive-viewer.html` in a browser. Choose a metric and time window, or use the overview charts to jump to speed, RPM, coolant temperature, and the pulley ratio estimate. The **Derived** group includes the ratio, RPM differences, estimated acceleration, and the difference between candidate CVT fluid and engine coolant temperatures. Hover over the large graph or focus it and use the arrow keys to inspect readings. Each drive uses elapsed time from the start of its recording. The HTML works offline.
+The offline report shows observed counts from the first trip and builds per-trip references as comparable drives accumulate. A JSON export is also available. [Manifest example and interpretation guide](docs/HEALTH_HISTORY.md)
 
-Pass one CSV or several CSVs to view other drives. Without labels, the viewer uses the filenames. Use **Shifter verification** to inspect the raw transmission byte against independently noted selector positions. [Parked shifter check](docs/changes/0005-derived-signals/plan.md#parked-shifter-check)
+## Contribute
 
-## Configure the adapter
+The contributor guide covers installing the Git hooks, running the offline tests, and tracing a raw reply to a plotted signal. It also describes the evidence that helps verify a new mapping. [Contributing](CONTRIBUTING.md) · [Development roadmap](docs/ROADMAP.md) · [Derived signal roadmap](docs/DERIVED_SIGNALS_ROADMAP.md)
 
-For repeatable runs, copy `cardaq.example.toml` to `cardaq.toml` and set `port` under `[serial]`. Pass the file with `uv run --locked cardaq identify --config cardaq.toml`. The CLI loads configuration files when explicitly supplied and uses command-line values when both are set. [Example configuration](cardaq.example.toml)
-
-## Architecture
-
-The package lives in `src/cardaq`. The CLI handles input and output, `config.py` loads serial settings, and `adapter.py` handles discovery and adapter communication through pySerial. [Roadmap](docs/ROADMAP.md)
-
-## Development workflow
-
-Run the adapter tests with `uv run --locked python -m unittest discover -s tests -v`.
-
-For each substantial change, use the next numbered folder under `docs/changes/` with a `report.md`, `plan.md`, and live `checklist.md`. Record verification commands and results in the checklist. Close physical checks when they have been reproduced on the device. [Report](docs/changes/0001-serial-bootstrap/report.md) · [Plan](docs/changes/0001-serial-bootstrap/plan.md) · [Checklist](docs/changes/0001-serial-bootstrap/checklist.md)
+CarDAQ's original code, documentation, and examples use the MIT license. The Honda field tables adapted from OBDb carry CC BY-SA 4.0. [License](LICENSE) · [Third-party notices](THIRD_PARTY_NOTICES.md)

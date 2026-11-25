@@ -1,0 +1,49 @@
+name: Test and package
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.15"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Build the source distribution and wheel
+        run: |
+          python -m pip install uv==0.11.3
+          uv lock --check
+          uv build
+      - name: Check repository hygiene and Python lint
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.11'
+        run: uv run --locked pre-commit run --all-files --show-diff-on-failure
+      - name: Test the installed wheel
+        run: |
+          python -m pip install dist/*.whl
+          cardaq --version
+          python -m cardaq --help
+          python -m unittest discover -s tests -v
+      - name: Run the offline quickstart
+        run: |
+          python examples/generate_demo.py
+          cardaq view captures/demo/synthetic-cool.csv captures/demo/synthetic-warm.csv \
+            --label "Cool start" --label "Warm start" --output captures/demo/comparison.html

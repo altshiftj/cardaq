@@ -1,0 +1,4 @@
+include CONTRIBUTING.md cardaq.example.toml uv.lock
+include examples/generate_demo.py
+recursive-include docs *.md
+include docs/images/signal-explorer.png
