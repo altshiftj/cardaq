@@ -1,5 +1,5 @@
-from io import BytesIO
 import unittest
+from io import BytesIO
 from unittest.mock import MagicMock, call, patch
 
 from serial import Serial, SerialException
