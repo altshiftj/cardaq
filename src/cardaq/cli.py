@@ -36,6 +36,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     view_parser.add_argument("--output", type=Path, required=True, help="path to the generated HTML viewer")
     view_parser.add_argument("--label", action="append", help="drive name (repeat once per CSV)")
     view_parser.add_argument("--signal-notes", type=Path, help="include per-signal notes for these recordings from JSON")
+    health_parser = commands.add_parser("health", help="track comparable engine and CVT observations across trips")
+    health_parser.add_argument("manifest", type=Path, help="TOML file listing one vehicle's independent trips")
+    health_parser.add_argument("--output", type=Path, required=True, help="offline .html report or .json export")
     for serial_parser in (identify_parser, sweep_parser, record_parser):
         serial_parser.add_argument("--config", type=Path, help="load serial settings from a TOML file")
         serial_parser.add_argument("--port", help="serial device, such as COM5 or /dev/ttyUSB0")
@@ -57,6 +60,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "view":
             write_viewer(args.captures, args.output, labels=args.label, signal_notes=args.signal_notes)
             print(f"Open {args.output.resolve()} in a browser.")
+        elif args.command == "health":
+            from .health import write_health
+
+            write_health(args.manifest, args.output)
+            print(f"Saved powertrain history to {args.output.resolve()}")
         else:
             settings = serial_settings(
                 args.config, port=args.port, baudrate=args.baudrate, timeout=args.timeout

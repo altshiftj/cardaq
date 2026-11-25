@@ -1,0 +1,299 @@
+<!doctype html>
+<!-- CarDAQ report software
+MIT License
+
+Copyright (c) 2026 James Fitz and CarDAQ contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Powertrain health · CarDAQ</title>
+  <style>
+    :root { color-scheme:dark; --bg:#0b1118; --surface:#121a22; --line:#2c3d49; --ink:#edf4f7; --muted:#adbdc8; --mint:#63e6be; --coral:#ffad84; font:16px/1.5 system-ui,sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--bg); }
+    main, .brand { width:min(100% - 2rem,76rem); margin:auto; }
+    header { border-bottom:1px solid var(--line); padding-block:.85rem; }
+    .brand { font-weight:750; letter-spacing:-.03em; }
+    .brand span { color:var(--mint); }
+    main { padding-block:2.1rem 3.5rem; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:clamp(2rem,4.5vw,3.2rem); line-height:1.12; letter-spacing:-.052em; }
+    h2 { font-size:1.3rem; letter-spacing:-.023em; }
+    .heading { display:flex; flex-wrap:wrap; align-items:end; justify-content:space-between; gap:.75rem; }
+    .vehicle { color:var(--mint); font-weight:650; overflow-wrap:anywhere; }
+    .meta,.help,small,.sub { color:var(--muted); }
+    .meta { margin-top:.25rem; }
+    .help { max-width:90ch; margin:.3rem 0 .75rem; font-size:.92rem; }
+    .reading { margin:.9rem 0; max-width:85ch; padding:.75rem 1rem; border-left:2px solid var(--mint); background:var(--bg); }
+    .reading dt { font-weight:650; font-size:.9rem; }
+    .reading dd { margin:.15rem 0 .65rem; color:var(--muted); font-size:.92rem; }
+    .reading dd:last-child { margin-bottom:0; }
+    section { margin-top:1.1rem; padding:clamp(.85rem,2vw,1.35rem); border:1px solid var(--line); border-radius:14px; background:var(--surface); min-width:0; }
+    label { display:grid; gap:.17rem; color:var(--muted); font-size:.85rem; font-weight:600; max-width:100%; }
+    select { font:inherit; min-height:2.6rem; padding:.35rem .65rem; border-radius:7px; color:var(--ink); border:1px solid #50616e; background:#0e161e; max-width:100%; width:min(100%,24rem); }
+    select:focus-visible,.scroll:focus-visible,summary:focus-visible { outline:2px solid var(--mint); outline-offset:2px; }
+    summary { width:fit-content; cursor:pointer; color:var(--mint); }
+    .scroll { overflow:auto; max-height:27rem; margin-top:.7rem; }
+    table { width:100%; border-collapse:separate; border-spacing:0; font-size:.88rem; line-height:1.42; font-variant-numeric:tabular-nums; }
+    th,td { border-bottom:1px solid var(--line); text-align:left; vertical-align:top; padding:.57rem .62rem; }
+    th:first-child,td:first-child { padding-inline-start:0; }
+    thead th { position:sticky; top:0; background:var(--surface); color:var(--muted); font-weight:600; white-space:nowrap; z-index:1; }
+    tbody th { min-width:9rem; font-weight:600; overflow-wrap:anywhere; }
+    tbody tr:last-child > * { border-bottom:0; }
+    .sub { display:block; font-weight:400; font-size:.8rem; }
+    .watch,.repeat { color:var(--coral); font-weight:650; }
+    .within_reference { color:var(--mint); }
+    #misfires td { min-width:10rem; }
+    #history td { white-space:nowrap; }
+    .plot { width:100%; display:block; height:225px; overflow:visible; }
+    .legend { display:flex; gap:.25rem 1.25rem; flex-wrap:wrap; color:var(--muted); font-size:.85rem; }
+    .solid,.dash { display:inline-block; width:1.4rem; border-top:2px solid var(--mint); margin:0 .4rem .2rem 0; }
+    .dash { border-top:2px dashed #a7baff; }
+    .empty { color:var(--muted); font-size:.9rem; margin:.8rem 0; }
+    [hidden] { display:none !important; }
+    @media(max-width:36rem) { main,.brand { width:calc(100% - 1.2rem); } main { padding-block:1.35rem 2rem; } label { width:100%; } select { width:100%; } }
+  </style>
+</head>
+<body>
+  <header><div class="brand"><span>Car</span>DAQ</div></header>
+  <main>
+    <div class="heading">
+      <div><p id="vehicle" class="vehicle"></p><h1>Powertrain health</h1><p id="coverage" class="meta"></p></div>
+      <label>Comparison group<select id="group"></select></label>
+    </div>
+    <noscript>Enable JavaScript to view the embedded trip history.</noscript>
+    <section aria-labelledby="overview-title">
+      <h2 id="overview-title">Trip overview</h2>
+      <div class="scroll" role="region" tabindex="0" aria-label="Trip overview"><table id="overview"></table></div>
+    </section>
+    <section aria-labelledby="misfire-title">
+      <h2 id="misfire-title">Cylinder misfire monitors</h2>
+      <p class="help">Each cylinder takes a turn giving the engine a push. When the computer detects a missing or weak push, it can add one to that cylinder’s misfire count. Read the arrows left to right. Going from 2 to 3 means the computer counted one more.</p>
+      <details><summary>Why a count can start above zero</summary><p class="help">The recorder asks the car for its count every so often. The peak time is when the recorder first saw the highest count. The engine could have missed a beat any time since the previous check. A 3 → 0 at startup can be the previous trip’s count clearing. The weighted reading summarizes several driving cycles.</p></details>
+      <div class="scroll" role="region" tabindex="0" aria-label="Misfire counts by trip and cylinder"><table id="misfires"></table></div>
+    </section>
+    <section aria-labelledby="trend-title">
+      <div class="heading"><h2 id="trend-title">Measurement history</h2><label>Metric<select id="metric"></select></label></div>
+      <p id="lesson-plain" class="help"></p>
+      <svg id="trend" class="plot" role="img" aria-label="Trip measurements and prior-trip medians. Values are in the table below."></svg>
+      <p id="no-trend" class="empty" hidden>These drives had too few readings in the conditions this chart needs.</p>
+      <p class="legend"><span><i class="solid"></i>One dot per drive</span><span><i class="dash"></i>Middle value from earlier drives in the same group</span></p>
+      <p id="lesson-observed" class="help"></p>
+      <details id="metric-lesson"><summary>Sensor, math and driving conditions</summary>
+      <p id="condition" class="help"></p>
+      <dl class="reading">
+        <dt>Where the signal comes from</dt><dd id="lesson-source"></dd>
+        <dt>How one trip becomes a point</dt><dd id="lesson-example"></dd>
+        <dt>What to compare</dt><dd id="lesson-compare"></dd>
+      </dl></details>
+      <div class="scroll" role="region" tabindex="0" aria-label="Numerical measurement history"><table id="history"></table></div>
+      <p class="help" id="screening-method"></p>
+      <p class="help">For a longer view, the report saves the first eight trips with enough readings as a starting point. A shift means the middle value of the latest five trips has moved outside that original range.</p>
+    </section>
+  </main>
+  <script type="application/json" id="health-data">__HEALTH_DATA__</script>
+  <script>
+    "use strict";
+    const el = id => document.getElementById(id);
+    const data = JSON.parse(el("health-data").textContent);
+    const trips = data.trips;
+    const groups = [...new Set(trips.map(trip => trip.group))];
+    const number = new Intl.NumberFormat(undefined, {maximumFractionDigits:3});
+    const pretty = value => Number.isFinite(value) ? number.format(value) : "—";
+    const dateLabel = iso => iso.slice(0,16).replace("T"," ");
+    const statuses = {
+      insufficient_samples:"Low coverage", building:"Learning", flat_reference:"Flat reference",
+      within_reference:"Within reference", watch:"Review", repeat:"Repeated departure"
+    };
+    function element(tag, text, cls) {
+      const node = document.createElement(tag);
+      if (text !== undefined) node.textContent = text;
+      if (cls) node.className = cls;
+      return node;
+    }
+    function cell(text, detail, isHeading = false) {
+      const node = element(isHeading ? "th" : "td", text);
+      if (isHeading) node.scope = "row";
+      if (detail) node.append(element("span",detail,"sub"));
+      return node;
+    }
+    function tripCell(trip) { return cell(trip.label, dateLabel(trip.date) + " · " + trip.group, true); }
+    function table(id, headings, rows) {
+      const out = el(id);
+      out.replaceChildren();
+      const header = out.createTHead().insertRow();
+      for (const text of headings) { const th = element("th",text); th.scope = "col"; header.append(th); }
+      const body = out.createTBody();
+      for (const cells of rows) body.insertRow().append(...cells);
+    }
+    el("vehicle").textContent = data.vehicle;
+    el("screening-method").textContent = "Learning means the report is still collecting drives. After "+data.minimumHistory+
+      " earlier drives with enough readings, it can compare a new dot with up to "+data.maximumHistory+
+      " similar drives. Review means this dot is unusually high or low for your car. Repeated departure means two drives in a row with enough readings fell outside the usual range on the same side.";
+    el("group").add(new Option("All groups","-1"));
+    groups.forEach((group, i) => el("group").add(new Option(group,String(i))));
+    function selectedTrips() {
+      const id = Number(el("group").value);
+      return id === -1 ? trips : trips.filter(trip => trip.group === groups[id]);
+    }
+    function monitorCell(row) {
+      if (!row || (!row.polls && !row.weightedPolls)) return cell("No readings");
+      const changes = (row.transitions || []).map(point => point.count);
+      const sequence = changes.length ? changes.join(" → ") : row.polls ? pretty(row.first)+" → "+pretty(row.last) : "—";
+      const peakTime = row.peak > 0 && Number.isFinite(row.peakElapsed)
+        ? " at "+Math.floor(row.peakElapsed/60)+"m "+Math.floor(row.peakElapsed%60)+"s" : "";
+      const node = cell(sequence, "Peak "+pretty(row.peak)+peakTime+" · "+row.polls+" cycle polls");
+      node.append(element("span","Last weighted "+pretty(row.weightedLast)+" · "+(row.weightedPolls ?? 0)+" polls","sub"));
+      return node;
+    }
+    function overview(selected) {
+      table("overview",["Recording","Engine warning lamp","ECM confirmed DTCs","Trip measurements","Notes"],selected.map(trip => {
+        const mil = trip.mil;
+        const eligible = trip.features.filter(f => Number.isFinite(f.value));
+        const flagged = eligible.filter(f => ["watch","repeat"].includes(f.baseline.status));
+        const shifts = eligible.filter(f => f.drift?.status === "shift");
+        const screened = eligible.filter(f => ["within_reference","watch","repeat"].includes(f.baseline.status));
+        return [tripCell(trip),cell(mil.everOn === null ? "No readings" : mil.everOn ? "On during capture" : "Off in observed polls",mil.polls+" status polls"),
+          cell(pretty(mil.maxCount),"peak reported"),cell(eligible.length+" eligible of "+trip.features.length,
+          screened.length+" screened · "+flagged.length+" flagged · "+shifts.length+" drift shifts"),cell(trip.note || "—")];
+      }));
+      table("misfires",["Recording","Cylinder 1","Cylinder 2","Cylinder 3","Cylinder 4"],selected.map(trip =>
+        [tripCell(trip),...[1,2,3,4].map(i => monitorCell(trip.cylinders.find(row => row.cylinder === i)))]));
+      el("coverage").textContent = selected.length+" recording"+(selected.length === 1 ? "" : "s")+
+        (selected.length ? " · "+dateLabel(selected[0].date)+" to "+dateLabel(selected.at(-1).date) : "");
+    }
+    function metricOptions(selected) {
+      const previous = el("metric").value;
+      const defs = new Map(), counts = new Map();
+      for (const trip of selected) for (const item of trip.features) {
+        defs.set(item.key,item);
+        counts.set(item.key,(counts.get(item.key) || 0) + Number(Number.isFinite(item.value)));
+      }
+      const options = [...defs.values()];
+      el("metric").replaceChildren(...options.map(item => new Option(item.label+" ("+item.unit+")",item.key)));
+      if (defs.has(previous)) el("metric").value = previous;
+      else if (options.length) el("metric").value = options.reduce((a,b) => counts.get(a.key)>=counts.get(b.key)?a:b).key;
+    }
+    let visible = [];
+    function renderHistory() {
+      const key = el("metric").value;
+      visible = selectedTrips().map(trip => ({trip, f:trip.features.find(item => item.key === key)}));
+      const definition = visible.find(row => row.f)?.f;
+      const lesson = data.lessons[key];
+      el("lesson-plain").textContent = lesson?.plain || "";
+      el("metric-lesson").hidden = !lesson;
+      el("lesson-observed").hidden = !lesson;
+      if (lesson) {
+        for (const field of ["source", "example", "compare"]) {
+          el("lesson-" + field).textContent = lesson[field];
+        }
+        const sample = visible.filter(row => Number.isFinite(row.f?.value)).at(-1);
+        if (sample) {
+          const {trip, f} = sample;
+          const size = pretty(f.value)+" "+f.unit;
+          const meaning = f.statistic === "iqr"
+            ? "the middle half of those readings spans "+size
+            : "the median of those readings is "+size;
+          el("lesson-observed").textContent = trip.label+" had "+pretty(f.count)+
+            " readings that fit this chart. For that drive, "+meaning+".";
+        } else {
+          el("lesson-observed").textContent = "The Samples column shows how many readings from each drive matched the conditions.";
+        }
+      }
+      el("condition").textContent = definition ? (definition.statistic === "iqr" ? "Middle-half spread" : "Sample median")+
+        " · "+definition.condition+" At least "+definition.minimum+" eligible readings per trip." : "";
+      const valueHeading = definition ? "Trip value ("+definition.unit+")" : "Trip value";
+      table("history",["Recording",valueHeading,"Samples","Earlier trips","Prior median","Reference band","Status","Anchored drift"],visible.map(({trip,f}) => {
+        const b = f?.baseline || {};
+        const status = cell((statuses[b.status] || "Missing metric")+(b.direction ? " · "+b.direction : ""));
+        if (b.status in statuses) status.className = b.status;
+        const d = f?.drift;
+        const driftLabel = d?.status === "shift" ? "Shift · "+d.direction : statuses[d?.status] || "—";
+        const drift = cell(driftLabel,Number.isFinite(d?.recentMedian) ?
+          "Anchor "+pretty(d.anchorMedian)+" → recent "+pretty(d.recentMedian) :
+          d ? d.anchorN+" anchor · "+d.recentN+" recent trips" : "");
+        if (d?.status === "shift") drift.className = "watch";
+        return [tripCell(trip),cell(pretty(f?.value)),cell(pretty(f?.count)),cell(pretty(b.n)),cell(pretty(b.median)),
+          cell(Number.isFinite(b.radius) ? pretty(b.median-b.radius)+" to "+pretty(b.median+b.radius) : "—"),status,drift];
+      }));
+      plot();
+    }
+    function svg(tag, attrs, text) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg",tag);
+      for (const [key,value] of Object.entries(attrs)) node.setAttribute(key,value);
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+    function plot() {
+      const chart = el("trend");
+      chart.replaceChildren();
+      const rows = visible;
+      const values = rows.flatMap(({f}) => [f?.value,f?.baseline.median]).filter(Number.isFinite);
+      chart.toggleAttribute("hidden",!values.length);
+      el("no-trend").hidden = Boolean(values.length);
+      if (!values.length) return;
+      const width = Math.max(240,chart.parentElement.clientWidth-40), height = 225;
+      chart.setAttribute("viewBox","0 0 "+width+" "+height);
+      const left = 55, right = width-12, top = 17, bottom = height-38;
+      let low = Infinity, high = -Infinity;
+      for (const v of values) { low = Math.min(low,v); high = Math.max(high,v); }
+      const pad = high === low ? Math.max(Math.abs(high)*.05,.1) : (high-low)*.12;
+      low -= pad; high += pad;
+      const first = Date.parse(rows[0].trip.date), last = Date.parse(rows.at(-1).trip.date);
+      const x = trip => first === last ? (left+right)/2 : left+(Date.parse(trip.date)-first)/(last-first)*(right-left);
+      const y = value => bottom-(value-low)/(high-low)*(bottom-top);
+      const label = (cx,cy,text,anchor="middle") => chart.append(svg("text",{x:cx,y:cy,"text-anchor":anchor,fill:"#adbdc8","font-size":"11"},text));
+      label(left,top-5,rows.find(row => row.f).f.unit,"start");
+      for (let i=0;i<=4;i++) {
+        const value = low+i*(high-low)/4, cy = y(value);
+        chart.append(svg("line",{x1:left,x2:right,y1:cy,y2:cy,stroke:"#2c3d49"}));
+        label(left-7,cy+4,pretty(value),"end");
+      }
+      const sameDay = rows[0].trip.date.slice(0,10) === rows.at(-1).trip.date.slice(0,10);
+      const tickDate = trip => sameDay ? dateLabel(trip.date).slice(5) : trip.date.slice(0,10);
+      label(x(rows[0].trip),bottom+23,tickDate(rows[0].trip),rows.length===1?"middle":"start");
+      if (rows.length>1) label(right,bottom+23,tickDate(rows.at(-1).trip),"end");
+      for (const reference of [true,false]) {
+        const color = reference ? "#a7baff" : "#63e6be";
+        const previous = new Map();
+        for (const {trip,f} of rows) {
+          const value = reference ? f?.baseline.median : f?.value;
+          if (!Number.isFinite(value)) { previous.delete(trip.group); continue; }
+          const cx=x(trip), cy=y(value), prior=previous.get(trip.group);
+          if (prior) chart.append(svg("line",{x1:prior[0],y1:prior[1],x2:cx,y2:cy,stroke:color,
+            "stroke-width":reference?1.5:2,"stroke-dasharray":reference?"5 4":"none"}));
+          const point = svg("circle",{cx,cy,r:reference?5:3.3,stroke:color,fill:reference?"#121a22":color});
+          point.append(svg("title",{},trip.label+" · "+trip.group+" · "+(reference?"prior median ":"")+pretty(value)+" "+f.unit));
+          chart.append(point); previous.set(trip.group,[cx,cy]);
+        }
+      }
+    }
+    function renderGroup() { const selected=selectedTrips(); overview(selected); metricOptions(selected); renderHistory(); }
+    el("group").addEventListener("change",renderGroup);
+    el("metric").addEventListener("change",renderHistory);
+    window.addEventListener("resize",plot);
+    renderGroup();
+  </script>
+</body>
+</html>
