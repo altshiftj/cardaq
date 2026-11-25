@@ -1,4 +1,4 @@
-"""Discover serial ports and read adapter-local OBDLink identification."""
+"""Discover serial ports, identify OBDLink adapters, and exchange serial commands."""
 
 import re
 from collections.abc import Iterator
@@ -19,7 +19,7 @@ _READ_INTERVAL = 0.05
 
 
 class AdapterError(RuntimeError):
-    """Serial enumeration or adapter identification failed."""
+    """Serial discovery, communication, or an expected adapter response failed."""
 
 
 @dataclass(frozen=True)
@@ -44,18 +44,29 @@ def identify(settings: SerialSettings) -> AdapterIdentity:
 
 @contextmanager
 def open_connection(settings: SerialSettings) -> Iterator[serial.Serial]:
-    try:
-        with serial.Serial(
+    with _serial_io(settings.port):
+        connection = serial.Serial(
             port=settings.port,
             baudrate=settings.baudrate,
             timeout=min(settings.timeout, _READ_INTERVAL),
             write_timeout=settings.timeout,
-        ) as connection:
+        )
+    try:
+        with _serial_io(settings.port):
             connection.reset_input_buffer()
-            yield connection
+        yield connection
+    finally:
+        with _serial_io(settings.port):
+            connection.close()
+
+
+@contextmanager
+def _serial_io(port: str | None) -> Iterator[None]:
+    try:
+        yield
     except (OSError, ValueError, OverflowError) as error:
         raise AdapterError(
-            f"Serial I/O on {settings.port!r} failed: {error}. "
+            f"Serial I/O on {port!r} failed: {error}. "
             "Check the connection and close other applications using the port."
         ) from error
 
@@ -76,30 +87,31 @@ def request(
     connection: serial.Serial, command: bytes, timeout: float, *, max_reply_bytes: int = 8192
 ) -> tuple[bytes, ...]:
     label = command.decode("ascii")
-    request = command + b"\r"
-    if connection.write(request) != len(request):
-        raise AdapterError(f"Could not send the complete {label} command to {connection.port!r}.")
+    wire_command = command + b"\r"
+    with _serial_io(connection.port):
+        if connection.write(wire_command) != len(wire_command):
+            raise AdapterError(f"Could not send the complete {label} command to {connection.port!r}.")
 
-    deadline = monotonic() + timeout
-    response = bytearray()
-    bytes_read = 0
-    while bytes_read < max_reply_bytes and monotonic() < deadline:
-        byte = connection.read(1)
-        if not byte:
-            continue
-        bytes_read += 1
-        if byte != b">":
-            response.extend(byte)
-            continue
+        deadline = monotonic() + timeout
+        response = bytearray()
+        bytes_read = 0
+        while bytes_read < max_reply_bytes and monotonic() < deadline:
+            byte = connection.read(1)
+            if not byte:
+                continue
+            bytes_read += 1
+            if byte != b">":
+                response.extend(byte)
+                continue
 
-        lines = [line.strip() for line in response.splitlines() if line.strip()]
-        if lines and lines[0].upper() == command:
-            lines.pop(0)
-        if command == b"STDI" and (not lines or (len(lines) == 1 and lines[0].startswith(b"ELM327 "))):
-            # A startup prompt can arrive just after opening the port.
-            response.clear()
-            continue
-        return tuple(lines)
+            lines = [line.strip() for line in bytes(response).splitlines() if line.strip()]
+            if lines and lines[0].upper() == command:
+                lines.pop(0)
+            if command == b"STDI" and (not lines or (len(lines) == 1 and lines[0].startswith(b"ELM327 "))):
+                # A startup prompt can arrive just after opening the port.
+                response.clear()
+                continue
+            return tuple(lines)
 
     raise AdapterError(
         f"No complete {label} reply from {connection.port!r}. "

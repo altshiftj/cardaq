@@ -1,6 +1,6 @@
+import unittest
 from collections import deque
 from io import BytesIO
-import unittest
 from unittest.mock import MagicMock, patch
 
 from serial import Serial
@@ -21,7 +21,6 @@ class SweepTests(unittest.TestCase):
     def set_up_serial(self, *exchanges: tuple[bytes, bytes]) -> None:
         connection = MagicMock(spec=Serial)
         connection.port = "test-serial"
-        connection.__enter__.return_value = connection
         pending = deque(exchanges)
 
         def exchange(request: bytes) -> int:
@@ -35,7 +34,7 @@ class SweepTests(unittest.TestCase):
         serial_factory = patch("cardaq.adapter.serial.Serial", return_value=connection)
         serial_factory.start()
         self.addCleanup(serial_factory.stop)
-        self.addCleanup(connection.__exit__.assert_called_once)
+        self.addCleanup(connection.close.assert_called_once_with)
         self.addCleanup(self.assertFalse, pending, "Expected more serial exchanges")
 
     def test_sweeps_per_ecu_and_samples_shared_pid_once(self) -> None:
