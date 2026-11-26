@@ -20,6 +20,13 @@ If a hook edits a file, review the diff, stage the intended changes, and retry t
 
 To run one test module, use a discovery pattern such as `uv run --locked python -m unittest discover -s tests -p test_viewer_trip.py -v`. VS Code's checked-in settings use the same unittest suite. For viewer changes, open the offline demo and inspect the changed metric or control. The HTML, CSS, and JavaScript ship in the Python wheel. [Demo commands](README.md#try-the-viewer)
 
+CI also opens an exported HTML file in headless Chromium. Run those browser tests locally with the browser dependency group.
+
+```sh
+uv run --locked --group browser python -m playwright install --only-shell chromium
+uv run --locked --group browser python -m unittest discover -s tests/browser -p offline_viewer.py -v
+```
+
 ## Where changes belong
 
 | If you are changing… | Start here |

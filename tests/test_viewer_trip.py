@@ -1,4 +1,5 @@
 import unittest
+from math import exp
 
 from cardaq.viewer.trip import TRIP_METRICS, derive_trip_series, speed_band_dwell
 
@@ -24,8 +25,54 @@ class DerivedTripTests(unittest.TestCase):
             [0, 0], [1, 10], [2, 20], [500, 20], [501, 50],
         ])
         self.assertEqual(results["derived_fuel_used_g"], [[0, 0], [2, 3], [500, 3], [501, 7]])
-        self.assertTrue(all(value == 0 for _, value in results["derived_positive_speed_energy_j_kg"]))
+        self.assertEqual(results["derived_positive_speed_energy_j_kg"], [[0, 0], [1, 0], [2, 0], [500, 0], [501, 0]])
         self.assertNotIn("derived_rolling_fuel_g_km", results)
+
+    def test_distance_and_revolutions_use_intervals_up_to_the_gap_limit(self):
+        for gap, distance, revolutions in (
+            (1.49, 0.05235, 52.35),
+            (1.50, 0.05250, 52.50),
+            (1.51, 0.03000, 30.00),
+        ):
+            with self.subTest(gap=gap):
+                times = [0, 1, 1 + gap, 2 + gap]
+                results = derive_trip_series({
+                    SPEED: [[time, speed] for time, speed in zip(times, (36, 36, 72, 72), strict=True)],
+                    RPM: [[time, rpm] for time, rpm in zip(times, (600, 600, 1200, 1200), strict=True)],
+                })
+                # The final one-second interval covers 0.02 km and 20 engine turns.
+                for metric, expected in (
+                    ("derived_distance_km", [0, 0.01, distance - 0.02, distance]),
+                    ("derived_engine_revolutions", [0, 10, revolutions - 20, revolutions]),
+                ):
+                    points = results[metric]
+                    self.assertEqual([time for time, _ in points], times, metric)
+                    for (_, value), total in zip(points, expected, strict=True):
+                        self.assertAlmostEqual(value, total, msg=metric)
+
+    def test_distance_and_positive_speed_energy_allow_irregular_sample_times(self):
+        regular = [(0, 0), (1, 36), (2, 36), (3, 0), (4, 0), (6, 72), (7, 72)]
+        irregular = [(0, 0), (1, 36), (1.375, 36), (2, 36), (3, 0), (3.625, 0), (4, 0), (6, 72), (7, 72)]
+        # The 10 m/s step has two seconds to raise smoothed speed before braking.
+        cruise_speed_m_s = 10 * (1 - exp(-2 / 1.5))
+        expected_energy = cruise_speed_m_s**2 / 2
+        for case, samples, offset in (("regular", regular, 0), ("irregular", irregular, 0), ("shifted", irregular, 23.25)):
+            with self.subTest(case=case):
+                speed = [[time + offset, kph] for time, kph in samples]
+                results = derive_trip_series({SPEED: speed})
+                distance = dict(results["derived_distance_km"])
+                energy = dict(results["derived_positive_speed_energy_j_kg"])
+                self.assertEqual(list(distance), [time for time, _ in speed])
+                self.assertEqual(list(energy), list(distance))
+                self.assertEqual(energy[offset], 0)
+                self.assertGreater(energy[1 + offset], 0)
+                self.assertLess(energy[1 + offset], expected_energy)
+                for time, total in ((2, 0.015), (3, 0.02), (4, 0.02), (6, 0.02), (7, 0.04)):
+                    self.assertAlmostEqual(distance[time + offset], total)
+                # Braking and the unobserved jump to 72 km/h leave accumulated energy in place.
+                for time, total in energy.items():
+                    if time >= 2 + offset:
+                        self.assertAlmostEqual(total, expected_energy, msg=f"Sample at {time} seconds")
 
     def test_rolling_values_need_new_observed_distance_after_gap(self):
         times = [*range(41), *range(500, 541)]

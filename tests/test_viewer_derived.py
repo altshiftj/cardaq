@@ -49,16 +49,24 @@ class DerivedSeriesTests(unittest.TestCase):
 
     def test_cvt_change_rates_add_to_drive_pulley_change_and_skip_gaps(self):
         results = derive_series({
-            "candidate_drive_pulley_rpm": [[1, 600], [2, 1800], [20, 2000]],
-            "candidate_driven_pulley_rpm": [[1, 500], [2, 1000], [20, 1200]],
-            "honda_vehicle_speed_kph": [[1, 15], [2, 30], [20, 40]],
+            "candidate_drive_pulley_rpm": [[1, 600], [2, 1800], [4, 1800], [20, 2000]],
+            "candidate_driven_pulley_rpm": [[1, 500], [2, 1000], [4, 1500], [20, 1200]],
+            "honda_vehicle_speed_kph": [[1, 15], [2, 30], [4, 35], [20, 40]],
         })
-        ratio_time, ratio_rate = results["derived_ratio_change_pct_s"][0]
-        self.assertEqual([t for t, _ in results["derived_ratio_change_pct_s"]], [2])
-        output_time, output_rate = results["derived_output_speed_change_pct_s"][0]
-        self.assertEqual([t for t, _ in results["derived_output_speed_change_pct_s"]], [2])
-        self.assertEqual(ratio_time, output_time)
-        self.assertAlmostEqual(ratio_rate + output_rate, 100 * log(1800 / 600))
+        ratio_rates = results["derived_ratio_change_pct_s"]
+        output_rates = results["derived_output_speed_change_pct_s"]
+        self.assertEqual([time for time, _ in ratio_rates], [2, 4])
+        self.assertEqual([time for time, _ in output_rates], [2, 4])
+        # The ratio moves 1.2 to 1.8 to 1.2 while output RPM rises on both intervals.
+        for (time, ratio_rate), (_, output_rate), (expected_ratio, expected_output, expected_drive) in zip(
+            ratio_rates, output_rates,
+            ((100 * log(1.5), 100 * log(2), 100 * log(3)), (50 * log(2 / 3), 50 * log(1.5), 0)),
+            strict=True,
+        ):
+            with self.subTest(time=time):
+                self.assertAlmostEqual(ratio_rate, expected_ratio)
+                self.assertAlmostEqual(output_rate, expected_output)
+                self.assertAlmostEqual(ratio_rate + output_rate, expected_drive)
 
     def test_warming_rate_requires_one_minute_of_contiguous_data(self):
         results = derive_series({"ecm_coolant_sensor_1_c": [

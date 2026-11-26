@@ -39,6 +39,9 @@ combine-as-imports = true
 "cardaq.health" = ["report.html"]
 
 [dependency-groups]
+browser = [
+    "playwright==1.65.0",
+]
 dev = [
     "pre-commit==4.7.0",
 ]

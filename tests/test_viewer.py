@@ -87,6 +87,32 @@ class ViewerTests(unittest.TestCase):
                     write_viewer([capture], self.output)
                 self.assertFalse(self.output.exists())
 
+    def test_equivalent_recording_formats_publish_the_same_readings(self) -> None:
+        ordered = self.capture(
+            "ordered.csv",
+            f"elapsed_s,{SPEED},request,reply\n"
+            "0,36,019D,18 DA F1 10 06 41 9D 00 32 00 00\n"
+            "1,36,019D,18 DA F1 10 06 41 9D 00 64 00 00\n"
+            "2,36,019D,18 DA F1 10 06 41 9D 00 96 00 00\n",
+        )
+        reordered = self.directory / "reordered.csv"
+        reordered.write_text(
+            f"extra,reply,{SPEED},request,elapsed_s\n"
+            '"parking, west",18daf11006419d00960000,36,01 9d,2\n'
+            ",18daf11006419d00320000,36,01 9d,0\n"
+            ",18daf11006419d00640000,36,01 9d,1\n",
+            encoding="utf-8",
+        )
+
+        write_viewer([ordered, reordered], self.output)
+
+        for drive in self.data()["drives"]:
+            with self.subTest(recording=drive["name"]):
+                self.assertEqual(drive["series"][SPEED], [[0, 36], [1, 36], [2, 36]])
+                self.assertEqual(drive["series"]["ecm_engine_fuel_rate_g_s"], [[0, 1], [1, 2], [2, 3]])
+                self.assertAlmostEqual(drive["summary"]["distanceKm"], 0.02)
+                self.assertAlmostEqual(drive["summary"]["fuelGrams"], 4)
+
     def test_extracts_shifter_byte_from_saved_honda_replies(self) -> None:
         reply = (
             "18 DA F1 1E 10 27 62 23 22 BE 7F 7F | 18 DA F1 1E 21 FF 00 00 00 00 00 00 | "

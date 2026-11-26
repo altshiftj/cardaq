@@ -30,20 +30,50 @@ class HealthReportTests(unittest.TestCase):
         report = json.loads(output.read_text(encoding="utf-8"))
         trip, = report["trips"]
         self.assertEqual(trip["date"], "2026-11-24T12:00:00.000-05:00")
+        self.assertEqual(trip["label"], "</script> morning")
         self.assertTrue(trip["features"])
         self.assertEqual(report["lessons"].keys(), {f["key"] for f in trip["features"]})
         for lesson in report["lessons"].values():
             self.assertTrue(all(lesson[field].strip() for field in ("plain", "source", "example", "compare")))
         self.assertTrue(all(f["baseline"]["status"] == "insufficient_samples" for f in trip["features"]))
         self.assertTrue(all(f["drift"]["status"] == "insufficient_samples" for f in trip["features"]))
-        self.assertTrue(all(c["last"] is None for c in trip["cylinders"]))
-        self.assertIsNone(trip["mil"]["everOn"])
+        self.assertEqual(
+            [(row["cylinder"], row["last"]) for row in trip["cylinders"]],
+            [(1, None), (2, None), (3, None), (4, None)],
+        )
+        self.assertEqual(trip["mil"], {"polls": 0, "everOn": None, "maxCount": None})
         page = self.root / "report.html"
         write_health(self.manifest, page)
         html = page.read_text(encoding="utf-8")
         self.assertNotIn("</script> morning", html)
         data = re.search(r'<script\b[^>]*id="health-data"[^>]*>(.*?)</script>', html, re.DOTALL)
         self.assertEqual(json.loads(data[1]), report)
+
+    def test_raw_diagnostic_replies_preserve_observed_counts_and_missing_polls(self):
+        with self.capture.open("a", encoding="utf-8") as capture:
+            capture.write(
+                "2026-11-24T12:00:02-05:00,2,reply,06A2,"
+                "18DAF110 10 0A 46 A2 0C 24 00 00 | 18DAF110 21 00 00 FF FF,\n"
+                "2026-11-24T12:00:03-05:00,3,reply,06A3,"
+                "18DAF110 10 13 46 A3 0B 24 00 07 | 18DAF110 21 00 00 FF FF A3 0C 24 | "
+                "18DAF110 22 00 03 00 00 FF FF,\n"
+                "2026-11-24T12:00:04-05:00,4,no_data,06A4,NO DATA,\n"
+                "2026-11-24T12:00:05-05:00,5,reply,0101,18DAF110 06 41 01 82 00 00 00,\n"
+                "2026-11-24T12:00:06-05:00,6,reply,0101,18DAF110 06 41 01 00 00 00 00,\n"
+            )
+        output = self.root / "report.json"
+
+        write_health(self.manifest, output)
+
+        trip, = json.loads(output.read_text(encoding="utf-8"))["trips"]
+        cylinders = trip["cylinders"]
+        self.assertEqual(
+            [(row["cylinder"], row["polls"], row["last"]) for row in cylinders],
+            [(1, 1, 0), (2, 1, 3), (3, 0, None), (4, 0, None)],
+        )
+        self.assertEqual(cylinders[1]["weightedLast"], 7)
+        self.assertEqual(cylinders[1]["transitions"], [{"seconds": 3, "count": 3}])
+        self.assertEqual(trip["mil"], {"polls": 2, "everOn": True, "maxCount": 2})
 
     def test_overlap_is_rejected_without_replacing_the_existing_report(self):
         trimmed = self.root / "cut.csv"
@@ -72,11 +102,16 @@ class HealthReportTests(unittest.TestCase):
             for second in range(20):
                 rows.append(f"2026-11-{day:02}T08:00:{second:02}-05:00,{second},0,{rpm},80")
             day_file.write_text("\n".join(rows), encoding="utf-8")
-            manifest.extend(["[[trip]]", f'capture = "{day_file.name}"', 'group = "Warm stops"'])
-        self.manifest.write_text("\n".join(manifest), encoding="utf-8")
+            manifest.append(f'[[trip]]\ncapture = "{day_file.name}"\ngroup = "Warm stops"')
         output = self.root / "series.json"
+        self.manifest.write_text("\n".join(manifest[:-1]), encoding="utf-8")
+        write_health(self.manifest, output)
+        previous_trips = json.loads(output.read_text(encoding="utf-8"))["trips"]
+
+        self.manifest.write_text("\n".join(manifest), encoding="utf-8")
         write_health(self.manifest, output)
         trips = json.loads(output.read_text(encoding="utf-8"))["trips"]
+        self.assertEqual(trips[:-1], previous_trips)
         idle = [next(f for f in trip["features"] if f["key"] == "engine_idle_rpm") for trip in trips]
         self.assertEqual(idle[8]["baseline"]["status"], "watch")
         self.assertEqual(idle[9]["baseline"]["status"], "repeat")

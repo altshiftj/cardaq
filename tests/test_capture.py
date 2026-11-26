@@ -1,14 +1,21 @@
 import csv
+import json
 import os
+import re
 import unittest
+from collections import defaultdict
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+from serial import Serial
 
 from cardaq.adapter import AdapterError
 from cardaq.capture import record
 from cardaq.config import SerialSettings
+from cardaq.viewer import write_viewer
 
 
 _ENGINE_OFF = b"18 DA F1 10 04 41 0C 00 00"
@@ -24,6 +31,114 @@ class FakeClock:
 
     def sleep(self, seconds: float) -> None:
         self.now += seconds
+
+
+class CaptureReplayTests(unittest.TestCase):
+    def test_serial_recording_replays_diagnostic_values_and_timing(self) -> None:
+        directory = Path(self.enterContext(TemporaryDirectory()))
+        capture = directory / "drive.csv"
+        viewer = directory / "drive.html"
+        clock = FakeClock()
+        self.enterContext(patch("cardaq.capture.monotonic", clock.monotonic))
+        self.enterContext(patch("cardaq.adapter.monotonic", clock.monotonic))
+        self.enterContext(patch("cardaq.capture.sleep", clock.sleep))
+        connection = MagicMock(spec=Serial)
+        connection.port = "test-serial"
+        self.enterContext(patch("cardaq.adapter.serial.Serial", return_value=connection))
+
+        functional, transmission = b"18DB33F1", b"18DA1EF1"
+        active_header = None
+        headers_visible = False
+        sent_at = defaultdict(list)
+        transmission_reply = (
+            b"18 DA F1 1E 10 27 62 23 22 BE 7F 7F",
+            b"18 DA F1 1E 21 FF 32 00 00 00 00 00",
+            b"18 DA F1 1E 22 00 00 00 04 D2 02 58",
+            b"18 DA F1 1E 23 1B 00 14 00 00 00 30",
+            b"18 DA F1 1E 24 00 00 64 00 A1 05 00",
+            b"18 DA F1 1E 25 3B 00 83 FC EA 55 55",
+        )
+        replies = {
+            b"010C": (_ENGINE_RUNNING,),
+            b"010D": (b"18 DA F1 10 03 41 0D 32",),
+            b"222322": transmission_reply,
+            b"ATRV": (b"12.5V",),
+        }
+
+        def exchange(wire_command: bytes) -> int:
+            nonlocal active_header, headers_visible
+            self.assertTrue(wire_command.endswith(b"\r"), wire_command)
+            command = wire_command[:-1]
+            if command.startswith(b"AT") and command != b"ATRV":
+                if command.startswith(b"ATSH"):
+                    active_header = command[4:]
+                    self.assertIn(active_header, (functional, transmission))
+                if command in (b"ATH0", b"ATH1"):
+                    headers_visible = command == b"ATH1"
+                reply = (b"OK",)
+            else:
+                if command != b"ATRV":
+                    self.assertTrue(headers_visible, command)
+                    self.assertTrue(command.startswith((b"01", b"06", b"22")), command)
+                    self.assertEqual(active_header, transmission if command.startswith(b"22") else functional, command)
+                sent_at[command].append(clock.now)
+                clock.sleep(0.125)
+                reply = replies.get(command, (b"NO DATA",))
+                if command == b"06A3":
+                    count = b"03" if len(sent_at[command]) == 1 else b"05"
+                    reply = (b"18 DA F1 10 10 0A 46 A3 0C 24 00 " + count, b"18 DA F1 10 21 00 00 FF FF")
+            connection.read.side_effect = BytesIO(b"\r".join((command, *reply, b">"))).read
+            return len(wire_command)
+
+        connection.write.side_effect = exchange
+        with patch("cardaq.capture.os.fsync"):
+            result = record(SerialSettings(connection.port), capture, 90, notify=lambda _: None)
+
+        self.assertEqual(result.stop_reason, "duration")
+        self.assertEqual(active_header, functional)
+        self.assertFalse(headers_visible)
+        connection.close.assert_called_once_with()
+        self.assertIn(b"222301", sent_at)
+        self.assertIn(b"222322", sent_at)
+        for command in (b"06A2", b"06A3", b"06A4", b"06A5"):
+            with self.subTest(command=command):
+                self.assertEqual(len(sent_at[command]), 2)
+                first, second = sent_at[command]
+                self.assertLess(first, 15)
+                self.assertGreaterEqual(second - first, 60)
+                self.assertLessEqual(second - first, 75)
+
+        with capture.open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream, strict=True))
+        self.assertEqual(result.replies, sum(row["event"] == "reply" for row in rows))
+        first_rpm = next(row for row in rows if row["request"] == "010C")
+        self.assertEqual(
+            [float(first_rpm[field]) for field in ("request_elapsed_s", "elapsed_s", "ecm_engine_speed_rpm")],
+            [0.0, 0.125, 2000.0],
+        )
+        did = next(row for row in rows if row["request"] == "222322")
+        self.assertEqual(did["reply"], " | ".join(frame.decode("ascii") for frame in transmission_reply))
+        self.assertEqual(float(did["candidate_torque_converter_turbine_rpm"]), 1234)
+        monitor_rows = [row for row in rows if row["request"] == "06A3"]
+        self.assertEqual([row["event"] for row in monitor_rows], ["reply", "reply"])
+        self.assertEqual(
+            [(float(row["request_elapsed_s"]), float(row["elapsed_s"])) for row in monitor_rows],
+            [(sent, sent + 0.125) for sent in sent_at[b"06A3"]],
+        )
+
+        write_viewer([capture], viewer)
+        html = viewer.read_text(encoding="utf-8")
+        script = re.search(r'<script\b[^>]*\bid="capture-data"[^>]*>(.*?)</script>', html, re.DOTALL)
+        self.assertIsNotNone(script)
+        drive, = json.loads(script[1])["drives"]
+        cylinder = next(item for item in drive["misfires"] if item["cylinder"] == 2)
+        first, second = (sent + 0.125 for sent in sent_at[b"06A3"])
+        self.assertEqual(cylinder["polls"], [
+            {"seconds": first, "count": 3, "previousSeconds": None, "delta": None, "cumulative": 0},
+            {"seconds": second, "count": 5, "previousSeconds": first, "delta": 2, "cumulative": 2},
+        ])
+        latency = dict(drive["series"]["observed_reply_latency_ms"])
+        self.assertEqual([latency[0], latency[int(second)]], [125, 125])
 
 
 class CaptureTests(unittest.TestCase):
@@ -164,6 +279,28 @@ class CaptureTests(unittest.TestCase):
 
         rows = self.assert_finished(result, "interrupted")
         self.assertIn(_ENGINE_OFF.decode(), [row["reply"] for row in rows])
+
+    def test_syncs_flushed_samples_periodically_before_the_end(self) -> None:
+        def request(_port, command, _timeout):
+            if command.startswith(b"AT"):
+                return (b"OK",)
+            self.clock.sleep(0.25)
+            return (_ENGINE_RUNNING,) if command == b"010C" else (b"NO DATA",)
+
+        sync = os.fsync
+        sync_times = []
+
+        def sync_and_observe(descriptor):
+            last = self.rows()[-1]
+            if last["event"] in {"reply", "no_data"}:
+                sync_times.append(float(last["elapsed_s"]))
+            sync(descriptor)
+
+        with patch("cardaq.capture.os.fsync", side_effect=sync_and_observe):
+            result = self.capture(request, duration=3.25)
+
+        self.assert_finished(result, "duration")
+        self.assertEqual(sync_times, [1, 2, 3])
 
     def test_existing_capture_is_left_intact(self) -> None:
         previous = b"timestamp,reply\r\n2026-11-23T23:05:00,recorded\r\n"

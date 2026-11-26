@@ -47,3 +47,10 @@ jobs:
           python examples/generate_demo.py
           cardaq view captures/demo/synthetic-cool.csv captures/demo/synthetic-warm.csv \
             --label "Cool start" --label "Warm start" --output captures/demo/comparison.html
+      - name: Test the exported viewer in a browser
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.11'
+        run: |
+          uv export --locked --only-group browser --output-file "$RUNNER_TEMP/browser-requirements.txt"
+          python -m pip install --require-hashes -r "$RUNNER_TEMP/browser-requirements.txt"
+          python -m playwright install --with-deps --only-shell chromium
+          python -m unittest discover -s tests/browser -p offline_viewer.py -v

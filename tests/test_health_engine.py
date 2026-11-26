@@ -29,8 +29,25 @@ class EngineFeatureTests(unittest.TestCase):
         del series["ecm_fuel_system_1_status"]
         self.assertEqual(by_key(series)["engine_idle_stft_pct"]["count"], 0)
 
+    def test_idle_median_and_spread_use_only_settled_observations(self):
+        settled_rpm = [740, 650, 730, 680, 760, 690, 710, 670, 1050, 700, 720, 660, 750]
+        # The first five seconds are unsettled, and the final sample is moving.
+        rpm = [900] * 5 + settled_rpm + [950]
+        speed = [0] * (len(rpm) - 1) + [20]
+        rows = by_key({
+            "ecm_engine_speed_rpm": [[t, value] for t, value in enumerate(rpm)],
+            "ecm_coolant_sensor_1_c": [[t, 80] for t in range(len(rpm))],
+            "ecm_vehicle_speed_kph": [[t, value] for t, value in enumerate(speed)],
+        })
+
+        idle, spread = rows["engine_idle_rpm"], rows["engine_idle_rpm_iqr"]
+        self.assertEqual((idle["count"], idle["value"]), (13, 710))
+        # The middle half of the sorted settled readings spans 680–740 rpm.
+        self.assertEqual((spread["count"], spread["value"]), (13, 60))
+
     def test_cruise_bands_exclude_load_speed_rpm_temperature_and_acceleration_mismatches(self):
         times = range(16)
+        trims = [20, -1, 4, 2, 6, 10, 21, -3, 8, 5, 11, -20, -16, -15, 30, 29]
         series = {
             "ecm_engine_speed_rpm": [[t, 2000 if t < 6 else 3500] for t in times],
             "ecm_coolant_sensor_1_c": [[t, 80] for t in times],
@@ -38,7 +55,7 @@ class EngineFeatureTests(unittest.TestCase):
             "ecm_calculated_load_pct": [[t, 40] for t in times],
             "derived_longitudinal_acceleration_m_s2": [[t, 0] for t in times],
             "ecm_fuel_system_1_status": [[t, 2] for t in times],
-            "ecm_long_term_fuel_trim_pct": [[t, 5 if t < 6 else 8] for t in times],
+            "ecm_long_term_fuel_trim_pct": [[t, value] for t, value in enumerate(trims)],
         }
         series["ecm_engine_speed_rpm"][11][1] = 3750
         series["ecm_vehicle_speed_kph"][12][1] = 120
