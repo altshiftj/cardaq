@@ -10,7 +10,7 @@ from .adapter import AdapterError, available_ports, identify
 from .capture import record
 from .config import DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, serial_settings
 from .obd import SweepResult, sweep
-from .viewer import write_viewer
+from .viewer import write_managed_viewer, write_viewer
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -28,17 +28,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--sample", action="store_true", help="read each distinct advertised data PID once"
     )
     record_parser = commands.add_parser("record", help="record the Civic's live data to a new CSV")
-    record_parser.add_argument("--output", type=Path, required=True, help="path to a new CSV")
+    record_parser.add_argument(
+        "--output", type=Path, help="new CSV path (default: automatically named under captures/recordings)"
+    )
     record_parser.add_argument("--duration", type=float, default=2700, help="maximum capture seconds (default 2700)")
     record_parser.add_argument("--note", default="", help="record a note with the capture start")
     view_parser = commands.add_parser("view", help="graph one or more CarDAQ recording CSVs")
     view_parser.add_argument("captures", type=Path, nargs="+", metavar="CSV")
-    view_parser.add_argument("--output", type=Path, required=True, help="path to the generated HTML viewer")
+    view_parser.add_argument(
+        "--output", type=Path, help="HTML viewer path (default: automatically named under captures/views)"
+    )
     view_parser.add_argument("--label", action="append", help="drive name (repeat once per CSV)")
     view_parser.add_argument("--signal-notes", type=Path, help="include per-signal notes for these recordings from JSON")
     health_parser = commands.add_parser("health", help="track comparable engine and CVT observations across trips")
     health_parser.add_argument("manifest", type=Path, help="TOML file listing one vehicle's independent trips")
-    health_parser.add_argument("--output", type=Path, required=True, help="offline .html report or .json export")
+    health_parser.add_argument(
+        "--output", type=Path, help="offline .html or .json path (default: HTML beside the manifest)"
+    )
     for serial_parser in (identify_parser, sweep_parser, record_parser):
         serial_parser.add_argument("--config", type=Path, help="load serial settings from a TOML file")
         serial_parser.add_argument("--port", help="serial device, such as COM5 or /dev/ttyUSB0")
@@ -58,13 +64,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             for device, description in ports:
                 print(f"{device}\t{description}" if description and description != "n/a" else device)
         elif args.command == "view":
-            write_viewer(args.captures, args.output, labels=args.label, signal_notes=args.signal_notes)
-            print(f"Open {args.output.resolve()} in a browser.")
+            if args.output is None:
+                output = write_managed_viewer(args.captures, labels=args.label, signal_notes=args.signal_notes)
+            else:
+                output = args.output
+                write_viewer(args.captures, output, labels=args.label, signal_notes=args.signal_notes)
+            print(f"Open {output.resolve()} in a browser.")
         elif args.command == "health":
             from .health import write_health
 
-            write_health(args.manifest, args.output)
-            print(f"Saved powertrain history to {args.output.resolve()}")
+            output = args.output or args.manifest.with_suffix(".html")
+            write_health(args.manifest, output)
+            print(f"Saved powertrain history to {output.resolve()}")
         else:
             settings = serial_settings(
                 args.config, port=args.port, baudrate=args.baudrate, timeout=args.timeout

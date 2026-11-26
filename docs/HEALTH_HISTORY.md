@@ -4,30 +4,30 @@
 
 ## Build a local report
 
-Create `captures/health-history.toml`. Use one `[[trip]]` entry per drive. Choose either a full recording or its culled copy for that drive. Capture paths are relative to the manifest. `label` and `note` are optional.
+Create `captures/health/health-history.toml`. Use one `[[trip]]` entry per drive. Choose either a full recording or its culled copy for that drive. Capture paths are relative to the manifest. Each recording needs an absolute timestamp with UTC offset and its elapsed time. The report rejects overlapping recordings. `label` and `note` are optional.
 
 ```toml
 vehicle = "Civic LX 2.0 CVT"
 
 [[trip]]
-capture = "outbound.csv"
+capture = "../recordings/2026-11-24/outbound.csv"
 group = "outbound-D"
 label = "Morning commute"
 note = "Driver reported D throughout."
 
 [[trip]]
-capture = "return-culled.csv"
+capture = "../derived/2026-11-24/return-culled.csv"
 group = "return-mixed"
 label = "Evening commute"
 note = "Started in D and switched to S early."
 ```
 
 ```sh
-uv run --locked cardaq health captures/health-history.toml --output captures/health-history.html
-uv run --locked cardaq health captures/health-history.toml --output captures/health-history.json
+uv run --locked cardaq health captures/health/health-history.toml
+uv run --locked cardaq health captures/health/health-history.toml --output captures/health/health-history.json
 ```
 
-Open the HTML locally or use the JSON for analysis. Add new recordings to the manifest and rerun the command. Reuse group names for comparable directions and reported selector use. Keep a mixed-mode trip in its own group until the selector signal is verified. The vehicle label can be a nickname. Keep any VIN, precise route details, captures and personal trip notes local.
+The default HTML report goes beside the manifest with the same base name. Open it locally or use the JSON for analysis. Add new recordings to the manifest and rerun the command. Reuse group names for comparable directions and reported selector use. Keep a mixed-mode trip in its own group until the selector signal is verified. The vehicle label can be a nickname. Keep any VIN, precise route details, captures and personal trip notes local.
 
 ## What to examine first
 

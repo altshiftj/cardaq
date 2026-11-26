@@ -1,14 +1,17 @@
 import csv
+import hashlib
 import json
 import os
 import re
 import unittest
 from collections import defaultdict
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 from serial import Serial
 
@@ -173,6 +176,7 @@ class CaptureTests(unittest.TestCase):
 
     def assert_finished(self, result, reason: str) -> list[dict[str, str]]:
         self.assertEqual(result.path, self.output)
+        self.assertFalse(self.output.with_suffix(".capture.json").exists())
         self.assertEqual(result.stop_reason, reason)
         rows = self.rows()
         self.assertEqual(rows[0]["event"], "start")
@@ -311,3 +315,107 @@ class CaptureTests(unittest.TestCase):
 
         self.assertEqual(self.output.read_bytes(), previous)
         self.assertEqual(self.opened, 0)
+
+    def test_managed_captures_use_unique_utc_ids_and_finalize_their_metadata(self) -> None:
+        root = self.output.parent
+        folder = root / "captures" / "recordings" / "2026-11-26"
+        now = datetime(2026, 11, 26, 0, 1, 2, 345678, tzinfo=timezone.utc)
+        self.enterContext(patch("cardaq.capture.Path.cwd", return_value=root))
+        wall_clock = self.enterContext(patch("cardaq.capture.datetime", wraps=datetime))
+        wall_clock.now.return_value = now
+        messages = []
+        in_progress = []
+
+        def notify(message):
+            messages.append(message)
+            if message.startswith("Recording to "):
+                path = Path(message.removeprefix("Recording to "))
+                in_progress.append(json.loads(path.with_suffix(".capture.json").read_text(encoding="utf-8")))
+
+        def request(_port, command, _timeout):
+            if command.startswith(b"AT"):
+                return (b"OK",)
+            self.clock.sleep(0.25)
+            return (_ENGINE_RUNNING,)
+
+        folder.mkdir(parents=True)
+        blocked = folder / f"20261126T000102.345678Z-{UUID(int=1).hex}.csv"
+        blocked.write_bytes(b"previous raw capture")
+        with patch("cardaq.capture.uuid4", side_effect=[UUID(int=1), UUID(int=2), UUID(int=3)]):
+            with patch("cardaq.capture.request", side_effect=request):
+                first = record(self.settings, None, 0.25, notify=notify)
+                second = record(self.settings, None, 0.25, notify=notify)
+
+        self.assertNotEqual(first.path, second.path)
+        self.assertEqual(blocked.read_bytes(), b"previous raw capture")
+        for result, live in zip((first, second), in_progress, strict=True):
+            with self.subTest(path=result.path):
+                path = result.path
+                self.assertEqual(path.parent, folder)
+                self.assertRegex(path.name, r"^20261126T000102\.345678Z-[0-9a-f]{32}\.csv$")
+                self.assertIn(f"Recording to {path}", messages)
+                with path.open(encoding="utf-8", newline="") as stream:
+                    rows = list(csv.DictReader(stream, strict=True))
+                self.assertEqual([row["event"] for row in rows], ["start", "reply", "end"])
+                started = datetime.fromisoformat(rows[0]["timestamp"]).astimezone(timezone.utc)
+                metadata = json.loads(path.with_suffix(".capture.json").read_text(encoding="utf-8"))
+                self.assertEqual(live, {
+                    "schema_version": 1,
+                    "capture_id": path.stem,
+                    "csv": path.name,
+                    "created_utc": "2026-11-26T00:01:02.345Z",
+                    "started_utc": started.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                    "format": "cardaq-csv",
+                    "source": "cardaq-record",
+                    "polling_profile": "honda-civic",
+                    "status": "recording",
+                    "stop_reason": None,
+                    "replies": None,
+                    "sha256": None,
+                })
+                self.assertEqual(metadata, {
+                    **live, "status": "complete", "stop_reason": "duration", "replies": 1,
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                })
+
+    def test_managed_capture_preserves_raw_data_after_a_failure(self) -> None:
+        root = self.output.parent
+        self.enterContext(patch("cardaq.capture.Path.cwd", return_value=root))
+
+        def request(_port, command, _timeout):
+            if command.startswith(b"AT"):
+                return (b"OK",)
+            if command == b"010C":
+                return (_ENGINE_RUNNING,)
+            raise OSError("recording fixture failed")
+
+        with patch("cardaq.capture.request", side_effect=request):
+            with self.assertRaisesRegex(OSError, "recording fixture failed"):
+                record(self.settings, None, 1, notify=lambda _: None)
+
+        path, = (root / "captures" / "recordings").glob("*/*.csv")
+        sidecar, = path.parent.glob("*.capture.json")
+        with path.open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream, strict=True))
+        self.assertEqual([row["event"] for row in rows], ["start", "reply"])
+        metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+        self.assertEqual(metadata["status"], "failed")
+        self.assertIsNone(metadata["sha256"])
+        self.assertEqual(set(path.parent.iterdir()), {path, sidecar})
+
+    def test_managed_capture_finalizes_after_interrupt(self) -> None:
+        root = self.output.parent
+        self.enterContext(patch("cardaq.capture.Path.cwd", return_value=root))
+        with patch("cardaq.capture.request", side_effect=KeyboardInterrupt):
+            result = record(self.settings, None, 1, notify=lambda _: None)
+
+        path = result.path
+        with path.open(encoding="utf-8", newline="") as stream:
+            rows = list(csv.DictReader(stream, strict=True))
+        self.assertEqual([row["event"] for row in rows], ["start", "end"])
+        self.assertEqual(result.stop_reason, "interrupted")
+        metadata = json.loads(path.with_suffix(".capture.json").read_text(encoding="utf-8"))
+        self.assertEqual(metadata["status"], "complete")
+        self.assertEqual(metadata["stop_reason"], "interrupted")
+        self.assertEqual(metadata["replies"], 0)
+        self.assertEqual(metadata["sha256"], hashlib.sha256(path.read_bytes()).hexdigest())

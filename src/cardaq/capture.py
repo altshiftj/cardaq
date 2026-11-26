@@ -1,14 +1,19 @@
 """Record the Civic's read-only diagnostic traffic directly to a durable CSV."""
 
 import csv
+import hashlib
+import json
 import os
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from math import isfinite
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from time import monotonic, sleep
 from typing import TextIO
+from uuid import uuid4
 
 from serial import Serial
 
@@ -54,12 +59,12 @@ class _CaptureCsv:
     def write(
         self, event: str, command: bytes = b"", reply: tuple[bytes, ...] = (), detail: str = "",
         measurements: dict[str, int | float] | None = None,
-        sent: float | None = None,
+        sent: float | None = None, *, timestamp: datetime | None = None,
     ) -> None:
         now = monotonic()
         frames = (line.decode("ascii", errors="backslashreplace") for line in reply)
         self.writer.writerow({
-            "timestamp": datetime.now().astimezone().isoformat(timespec="milliseconds"),
+            "timestamp": (timestamp or datetime.now()).astimezone().isoformat(timespec="milliseconds"),
             "elapsed_s": f"{now - self.started:.3f}",
             "request_elapsed_s": "" if sent is None else f"{sent - self.started:.3f}",
             "event": event,
@@ -75,29 +80,115 @@ class _CaptureCsv:
 
 
 def record(
-    settings: SerialSettings, output: Path, duration: float, *, note: str = "",
+    settings: SerialSettings, output: Path | None, duration: float, *, note: str = "",
     notify: Callable[[str], None] = print,
 ) -> CaptureResult:
-    """Log the Civic's known requests until the duration or a parked stop."""
+    """Log the Civic's known requests, using the dated capture library when output is absent."""
     if not isfinite(duration) or duration <= 0:
         raise ValueError("Capture duration must be a finite positive number of seconds.")
-    output = output.resolve()
-    stop_path = output.with_suffix(output.suffix + ".stop")
-    if stop_path.exists():
-        raise FileExistsError(f"The stop file {stop_path} already exists. Use a fresh output path.")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("x", encoding="utf-8", newline="") as stream:
-        started = monotonic()
-        log = _CaptureCsv(stream, started)
-        log.write("start", detail=note)
-        notify(f"Recording to {output}")
-        capture = _Capture(settings, log, stop_path, started + duration, notify)
+
+    if output is not None:
+        output = output.resolve()
+        stop_path = output.with_suffix(output.suffix + ".stop")
+        if stop_path.exists():
+            raise FileExistsError(f"The stop file {stop_path} already exists. Use a fresh output path.")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("x", encoding="utf-8", newline="") as stream:
+            return _record_csv(settings, output, stream, duration, note, notify)
+
+    created = datetime.now(timezone.utc)
+    output, stream = _new_managed_capture(created)
+    sidecar = output.with_suffix(".capture.json")
+    metadata: dict[str, str | int | None] = {
+        "schema_version": 1,
+        "capture_id": output.stem,
+        "csv": output.name,
+        "created_utc": _utc_timestamp(created),
+        "started_utc": None,
+        "format": "cardaq-csv",
+        "source": "cardaq-record",
+        "polling_profile": "honda-civic",
+        "status": "recording",
+        "stop_reason": None,
+        "replies": None,
+        "sha256": None,
+    }
+
+    def mark_recording(started: datetime) -> None:
+        metadata["started_utc"] = _utc_timestamp(started)
+        _write_metadata(sidecar, metadata)
+
+    try:
+        with stream:
+            result = _record_csv(settings, output, stream, duration, note, notify, on_start=mark_recording)
+        with output.open("rb") as source:
+            digest = hashlib.file_digest(source, "sha256").hexdigest()
+        _write_metadata(sidecar, {
+            **metadata, "status": "complete", "stop_reason": result.stop_reason,
+            "replies": result.replies, "sha256": digest,
+        })
+    except BaseException:
+        with suppress(OSError):
+            _write_metadata(sidecar, {**metadata, "status": "failed"})
+        raise
+    return result
+
+
+def _utc_timestamp(when: datetime) -> str:
+    return when.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _new_managed_capture(created: datetime) -> tuple[Path, TextIO]:
+    directory = (Path.cwd() / "captures" / "recordings" / created.date().isoformat()).resolve()
+    directory.mkdir(parents=True, exist_ok=True)
+    prefix = created.strftime("%Y%m%dT%H%M%S.%fZ")
+    for _ in range(10):
+        output = directory / f"{prefix}-{uuid4().hex}.csv"
+        if output.with_suffix(".capture.json").exists() or output.with_suffix(".csv.stop").exists():
+            continue
         try:
-            reason = capture.run()
-        except KeyboardInterrupt:
-            reason = "interrupted"
-        log.write("end", detail=reason)
-        return CaptureResult(output, reason, capture.replies)
+            return output, output.open("x", encoding="utf-8", newline="")
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"Could not allocate a unique capture in {directory}.")
+
+
+def _write_metadata(path: Path, metadata: dict[str, str | int | None]) -> None:
+    stream = NamedTemporaryFile(dir=path.parent, mode="w", encoding="utf-8", newline="\n", delete=False)
+    temporary = Path(stream.name)
+    try:
+        with stream:
+            json.dump(metadata, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(path)
+    finally:
+        with suppress(OSError):
+            temporary.unlink(missing_ok=True)
+
+
+def _record_csv(
+    settings: SerialSettings, output: Path, stream: TextIO, duration: float, note: str,
+    notify: Callable[[str], None], *, on_start: Callable[[datetime], None] | None = None,
+) -> CaptureResult:
+    started = monotonic()
+    log = _CaptureCsv(stream, started)
+    if on_start is None:
+        log.write("start", detail=note)
+    else:
+        timestamp = datetime.now(timezone.utc)
+        log.write("start", detail=note, timestamp=timestamp)
+        on_start(timestamp)
+    notify(f"Recording to {output}")
+    stop_path = output.with_suffix(output.suffix + ".stop")
+    capture = _Capture(settings, log, stop_path, started + duration, notify)
+    try:
+        reason = capture.run()
+    except KeyboardInterrupt:
+        reason = "interrupted"
+    log.write("end", detail=reason)
+    return CaptureResult(output, reason, capture.replies)
 
 
 class _Capture:

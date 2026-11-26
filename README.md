@@ -28,18 +28,17 @@ Connect the adapter, close other applications using it, and find its serial port
 uv run --locked cardaq ports
 uv run --locked cardaq identify --port COM5
 uv run --locked cardaq sweep --port COM5
-uv run --locked cardaq record --port COM5 --duration 2700 --output captures/drive.csv
-uv run --locked cardaq view captures/drive.csv --output captures/drive.html
+uv run --locked cardaq record --port COM5
 ```
 
-Start the recorder while parked and wait for its `Ready` message. Use a fresh CSV filename for each recording. Turning the ignition off can leave the process retrying until the duration expires. Once parked, press Ctrl+C to finish early. The recording guide covers the stop file, serial settings, supported signals, and missing data. [Recording guide](docs/RECORDINGS.md) · [Example serial configuration](cardaq.example.toml)
+Start the recorder while parked and wait for its `Ready` message. The recorder picks a filename under `captures/recordings/` and prints its path. Pass that path to `uv run --locked cardaq view` to save an offline report under `captures/views/`. Turning the ignition off can leave the process retrying until the duration expires. Once parked, press Ctrl+C to finish early. [Recording guide](docs/RECORDINGS.md) · [Example serial configuration](cardaq.example.toml)
 
 ## Track one vehicle over time
 
 `cardaq health` follows cylinder misfire counters, closed-loop fuel trims, warm idle RPM and coolant, and candidate CVT slip and ratio movement under comparable cruise conditions. Add each independent drive to a local TOML manifest. Give it a comparison group such as outbound in Drive, and record relevant changes in mode or maintenance.
 
 ```sh
-uv run --locked cardaq health captures/health-history.toml --output captures/health-history.html
+uv run --locked cardaq health captures/health/health-history.toml
 ```
 
 The offline report shows observed counts from the first trip and builds per-trip references as comparable drives accumulate. A JSON export is also available. [Manifest example and interpretation guide](docs/HEALTH_HISTORY.md)

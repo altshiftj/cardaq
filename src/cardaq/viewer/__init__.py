@@ -4,11 +4,13 @@ import csv
 import hashlib
 import json
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from importlib.resources import files
 from math import isfinite
+from os.path import relpath
 from pathlib import Path
 from statistics import median
 from tempfile import NamedTemporaryFile
@@ -306,7 +308,12 @@ def _read_capture(path: Path, label: str) -> dict:
     }
 
 
-def _comparison_notes(path: Path, recordings: Sequence[Path], metrics: dict) -> dict[str, str]:
+def _file_sha256(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _comparison_notes(path: Path, fingerprints: list[str], metrics: dict) -> dict[str, str]:
     with path.open(encoding="utf-8-sig") as stream:
         document = json.load(stream)
     if not isinstance(document, dict) or not isinstance(document.get("signals"), dict):
@@ -314,10 +321,6 @@ def _comparison_notes(path: Path, recordings: Sequence[Path], metrics: dict) -> 
     expected = document.get("recording_sha256")
     if not isinstance(expected, list) or not all(isinstance(digest, str) for digest in expected):
         raise ValueError(f"{path} must list recording_sha256 fingerprints in input order.")
-    fingerprints = []
-    for recording in recordings:
-        with recording.open("rb") as stream:
-            fingerprints.append(hashlib.file_digest(stream, "sha256").hexdigest())
     if [digest.lower() for digest in expected] != fingerprints:
         raise ValueError(f"{path} refers to different recording contents or a different input order.")
     notes = document["signals"]
@@ -327,23 +330,86 @@ def _comparison_notes(path: Path, recordings: Sequence[Path], metrics: dict) -> 
     return notes
 
 
+def _viewer_labels(paths: Sequence[Path], labels: Sequence[str] | None) -> list[str]:
+    if not paths:
+        raise ValueError("Provide at least one CarDAQ recording.")
+    if labels is not None and len(labels) != len(paths):
+        raise ValueError("Provide one --label per recording, or omit --label.")
+    return [path.stem for path in paths] if labels is None else list(labels)
+
+
+def _check_viewer_destination(output: Path, paths: Sequence[Path], signal_notes: Path | None) -> None:
+    resolved = output.resolve()
+    if any(path.resolve() == resolved for path in paths):
+        raise ValueError("The viewer output must differ from the input recordings.")
+    if signal_notes is not None and signal_notes.resolve() == resolved:
+        raise ValueError("The viewer output must differ from the signal notes file.")
+
+
 def write_viewer(
     paths: Sequence[Path], output: Path, *, labels: Sequence[str] | None = None,
     signal_notes: Path | None = None,
 ) -> None:
     """Write a single HTML file containing the selected CSVs' decoded readings."""
-    if not paths:
-        raise ValueError("Provide at least one CarDAQ recording.")
-    if labels is not None and len(labels) != len(paths):
-        raise ValueError("Provide one --label per recording, or omit --label.")
+    names = _viewer_labels(paths, labels)
     if output.suffix.lower() != ".html":
         raise ValueError("The viewer output must have an .html extension.")
-    if any(path.resolve() == output.resolve() for path in paths):
-        raise ValueError("The viewer output must differ from the input recordings.")
-    if signal_notes is not None and signal_notes.resolve() == output.resolve():
-        raise ValueError("The viewer output must differ from the signal notes file.")
+    _check_viewer_destination(output, paths, signal_notes)
+    write_report_text(output, _viewer_page(paths, names, signal_notes))
 
-    names = [path.stem for path in paths] if labels is None else labels
+
+def _provenance_path(path: Path, directory: Path) -> str:
+    resolved = path.resolve()
+    try:
+        return Path(relpath(resolved, directory.resolve())).as_posix()
+    except ValueError:
+        # A relative path cannot span drive letters or UNC shares on Windows.
+        return resolved.as_uri()
+
+
+def write_managed_viewer(
+    paths: Sequence[Path], *, labels: Sequence[str] | None = None, signal_notes: Path | None = None,
+) -> Path:
+    """Export to captures/views with an adjacent JSON record of the ordered inputs."""
+    names = _viewer_labels(paths, labels)
+    fingerprints = [_file_sha256(path) for path in paths]
+    notes_fingerprint = _file_sha256(signal_notes) if signal_notes is not None else None
+    identity = json.dumps([list(zip(fingerprints, names, strict=True)), notes_fingerprint], separators=(",", ":"))
+    identifier = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    directory = Path.cwd() / "captures" / "views"
+    output = directory / f"view-{identifier}.html"
+    provenance = output.with_suffix(".json")
+    for destination in (output, provenance):
+        _check_viewer_destination(destination, paths, signal_notes)
+        if destination.is_dir():
+            raise IsADirectoryError(f"{destination} is a directory.")
+
+    page = _viewer_page(paths, names, signal_notes, fingerprints=fingerprints)
+    if fingerprints != [_file_sha256(path) for path in paths]:
+        raise ValueError("A recording changed during export. Finish recording and try again.")
+
+    metadata = {
+        "version": 1,
+        "output": output.name,
+        "inputs": [
+            {"path": _provenance_path(path, directory), "sha256": fingerprint, "label": name}
+            for path, fingerprint, name in zip(paths, fingerprints, names, strict=True)
+        ],
+    }
+    if signal_notes is not None:
+        if notes_fingerprint != _file_sha256(signal_notes):
+            raise ValueError("The signal notes changed during export. Try again.")
+        metadata["signal_notes"] = {"path": _provenance_path(signal_notes, directory), "sha256": notes_fingerprint}
+    contents = json.dumps(metadata, indent=2) + "\n"
+    with _stage_report_text(output, page) as staged_page, _stage_report_text(provenance, contents) as staged_provenance:
+        staged_page.replace(output)
+        staged_provenance.replace(provenance)
+    return output
+
+
+def _viewer_page(
+    paths: Sequence[Path], names: Sequence[str], signal_notes: Path | None, *, fingerprints: list[str] | None = None,
+) -> str:
     drives = [_read_capture(path, name) for path, name in zip(paths, names, strict=True)]
     used_columns = {column for drive in drives for column in drive["series"]}
     metrics = {
@@ -353,7 +419,9 @@ def write_viewer(
     }
     data = {"drives": drives, "metrics": metrics}
     if signal_notes is not None:
-        data["comparisonNotes"] = _comparison_notes(signal_notes, paths, metrics)
+        if fingerprints is None:
+            fingerprints = [_file_sha256(path) for path in paths]
+        data["comparisonNotes"] = _comparison_notes(signal_notes, fingerprints, metrics)
     payload = json.dumps(data, separators=(",", ":"))
     resources = files(__package__)
     replacements = {
@@ -362,18 +430,23 @@ def write_viewer(
     }
     replacements["__VIEWER_DATA__"] = payload.replace("<", r"\u003c")
     template = resources.joinpath("dashboard.html").read_text(encoding="utf-8")
-    page = _PLACEHOLDERS.sub(lambda match: replacements[match[0]], template)
-    write_report_text(output, page)
+    return _PLACEHOLDERS.sub(lambda match: replacements[match[0]], template)
 
 
 def write_report_text(output: Path, contents: str) -> None:
     """Replace a generated report only after writing it successfully."""
+    with _stage_report_text(output, contents) as temporary:
+        temporary.replace(output)
+
+
+@contextmanager
+def _stage_report_text(output: Path, contents: str) -> Iterator[Path]:
     output.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(dir=output.parent, encoding="utf-8", mode="w", delete=False) as stream:
         temporary = Path(stream.name)
         try:
             stream.write(contents)
             stream.close()
-            temporary.replace(output)
+            yield temporary
         finally:
             temporary.unlink(missing_ok=True)

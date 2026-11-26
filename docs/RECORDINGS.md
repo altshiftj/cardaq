@@ -11,14 +11,29 @@ Use `sweep` to see which standard Mode 01 parameter identifiers (PIDs) each elec
 ## Start and finish a capture
 
 ```sh
-uv run --locked cardaq record --config cardaq.toml --duration 1800 --output captures/drive-01.csv --note "Engine cold at start"
+uv run --locked cardaq record --config cardaq.toml --duration 1800 --note "Engine cold at start"
 ```
 
-1. While parked, start the recorder with a new output filename. The `Ready` line confirms an ECM RPM response. Zero RPM is a valid observation with the ignition on and the engine off.
+1. While parked, start the recorder. It prints the new CSV path. The `Ready` line confirms an ECM RPM response. Zero RPM is a valid observation with the ignition on and the engine off.
 2. Leave the recorder running unattended during the drive. The CSV is flushed after every row and synced to disk periodically.
-3. Once parked, press Ctrl+C for a foreground run, or create an empty file with `.stop` appended to the CSV filename. For the command above, that is `captures/drive-01.csv.stop`. The recorder also stops at the duration limit. A normal stop writes an `end` row. A foreground interruption exits with status 130.
+3. Once parked, press Ctrl+C for a foreground run, or create an empty file with `.stop` appended to the printed CSV path. The suffix is `.csv.stop`. The recorder also stops at the duration limit. A normal stop writes an `end` row. A foreground interruption exits with status 130.
 
-After key-off the adapter can remain powered while the vehicle stops answering. The recorder retries during the remaining recording time. A parked break can therefore appear as a long gap followed by another drive. Use a fresh filename for each leg when you want to compare them individually.
+After key-off the adapter can remain powered while the vehicle stops answering. The recorder retries during the remaining recording time. A parked break can therefore appear as a long gap followed by another drive. Start a new recording for each leg when you want to compare them individually.
+
+## Local capture library
+
+Run from the repository root to use one local library. The automatic recording path is `captures/recordings/<UTC-date>/<capture-id>.csv`. The identifier includes the UTC time and a random suffix, so recordings started together can have separate paths. Use `--output` when you want to set the path yourself.
+
+| Directory | Contents |
+| --- | --- |
+| `recordings/` | Original CarDAQ CSVs, grouped by UTC date, with associated metadata or logs |
+| `derived/` | Cropped or otherwise derived CSVs and their source references |
+| `imports/` | Original files collected with other tools |
+| `views/` | Offline viewer exports, provenance files, and recording-bound notes |
+| `health/` | The local comparison manifest and its generated reports |
+| `demo/` | Synthetic quickstart data and reports |
+
+Each automatically named recording has a sibling `<capture-id>.capture.json` with its identifier, format, UTC times, recorder provenance, and capture status. Completed captures include the stop reason, reply count, and SHA-256 fingerprint for verifying the CSV. A sidecar still marked `recording` means finalization has yet to be recorded. Preserve original CSVs and keep cropped copies separately with a reference to their source. The capture library is Git-ignored. These conventions apply FAIR data practices locally through identifiers, documented formats, and machine-readable provenance. [FAIR Guiding Principles](https://doi.org/10.1038/sdata.201618)
 
 ## Read the CSV
 
@@ -43,8 +58,10 @@ Choose a metric under **Signals**. Select **Chart guide** beside the metric titl
 On the Civic’s 2.0 L K20C2 engine, coolant sensor 1 samples the engine side of the cooling system and sensor 2 samples the radiator side. The ECM and TCM can report the same probe. During a preheated start, comparing the two probes tells you more about the distribution of heat than comparing two controllers’ copies of sensor 1. [K20C2 thermostat housing procedure](https://honcivic.automotive-manuals.com/techinfo/html/en/civic-fc-fk/R003104.html) · [K20C2 radiator procedure](https://honcivic.automotive-manuals.com/techinfo/html/en/civic-fc-fk/R003108.html) · [Honda’s 2020 Civic component list](https://owners.honda.com/Documentum/Warranty/Partslist/2020_Honda_Civic_Sedan_and_Coupe_-_EWPL_-_APL12747_SIS.pdf)
 
 ```sh
-uv run --locked cardaq view captures/outbound.csv captures/return.csv --label "Outbound" --label "Return" --output captures/comparison.html
+uv run --locked cardaq view path/to/outbound.csv path/to/return.csv --label "Outbound" --label "Return"
 ```
+
+The viewer prints the path under `captures/views/` and saves a JSON file with the ordered recording paths, hashes, labels, and optional notes source. Rerunning with the same input content, labels, and notes refreshes the same export. Use `--output` for a specific location. Pass the recording paths in the desired display order.
 
 Use the checkboxes in **Recordings** to choose the drives to compare. Select the **Recordings** heading to collapse or reopen the list. Your selected drives stay on the charts. Chart sections, misfire plots and notebook panels also fold independently. Use **Collapse all** for an outline of the report, or **Expand all** to open every panel and its details. Open **Trip details** for start times, peak readings and trip totals. In a four-drive report, try checking just the two outbound trips and selecting **Cumulative fuel used** on the distance axis. The charts, summaries, speed bands and notebook use the same selection. Hiding the drive that supplied a focused event clears that event. Notes written for the full set reappear when all drives are selected in the entire-recording window.
 
