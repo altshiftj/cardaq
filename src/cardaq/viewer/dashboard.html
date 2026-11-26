@@ -32,185 +32,257 @@ SOFTWARE.
   <title>Drive comparison | CarDAQ</title>
   <style>
 __VIEWER_CSS__
+__VIEWER_RECORDINGS__
   </style>
 </head>
-<body>
+<body id="top">
   <header class="masthead">
     <div class="masthead-inner">
-      <div class="brand">
+      <a class="brand" href="#top" aria-label="CarDAQ, back to recordings">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         CarDAQ
-      </div>
-      <span class="masthead-label">Vehicle telemetry</span>
+      </a>
+      <nav id="section-nav" aria-label="Viewer sections" hidden>
+        <a href="#signal-explorer">Signals</a>
+        <a href="#quick-section">Quick looks</a>
+        <a href="#misfire-history">Misfires</a>
+        <a href="#trip-notebook">Notebook</a>
+        <a href="#operating-map">Operating map</a>
+      </nav>
     </div>
   </header>
 
   <main class="dashboard">
     <div class="page-heading">
       <h1>Drive comparison</h1>
-      <p>Compare recordings by time, distance, and road speed.</p>
+      <div class="layout-tools">
+        <p id="report-scope"></p>
+        <div id="fold-actions" hidden>
+          <button type="button" class="notebook-button" id="collapse-all">Collapse all</button>
+          <button type="button" class="notebook-button" id="expand-all">Expand all</button>
+        </div>
+      </div>
     </div>
     <p id="viewer-error" class="viewer-error" role="alert" hidden></p>
     <noscript><p class="viewer-error">Enable JavaScript to view the capture graphs.</p></noscript>
 
-    <section id="drive-list" class="drive-list" aria-label="Recording summaries"></section>
-
-    <section class="explorer" id="signal-explorer" aria-labelledby="metric-title">
-      <div class="explorer-heading">
-        <div class="metric-heading">
-          <h2 id="metric-title">Signal explorer</h2>
-        </div>
-        <div class="chart-controls" id="timeline-controls">
-          <label for="metric">Metric
-            <select id="metric" aria-describedby="lesson-plain"></select>
-          </label>
-          <label for="window">Time window
-            <select id="window">
-              <option value="full">Entire recording</option>
-              <option value="60">First minute</option>
-              <option value="120">First 2 minutes</option>
-              <option value="300">First 5 minutes</option>
-              <option value="600">First 10 minutes</option>
-            </select>
-          </label>
-          <label for="axis" id="axis-control" hidden>Horizontal axis
-            <select id="axis">
-              <option value="time">Elapsed time</option>
-              <option value="distance">Observed distance</option>
-            </select>
-          </label>
-        </div>
-      </div>
-      <div class="signal-guide">
-        <p id="lesson-plain"></p>
-        <a href="#lesson-title">Read the chart guide</a>
-      </div>
-      <div id="event-context" class="event-context" hidden>
-        <p id="event-context-text" role="status"></p>
-        <button id="event-reset" type="button" class="notebook-button">Exit event view</button>
-      </div>
-      <div class="main-canvas">
-        <canvas id="main-chart" tabindex="0" aria-label="Selected signal chart" aria-describedby="chart-instructions">
-          Use the recording summaries and values below to compare the selected signal.
-        </canvas>
-      </div>
-      <p id="chart-instructions" class="chart-instructions">Gaps indicate missing samples. Hover or tap to inspect values, or focus the chart and use the arrow keys.</p>
-      <div id="metric-stats" class="metric-stats" role="group" aria-label="Selected signal statistics"></div>
-      <section class="metric-lesson" aria-labelledby="lesson-title">
-        <h3 id="lesson-title" tabindex="-1">Reading this chart</h3>
-        <p id="lesson-reading"></p>
-        <div id="lesson-related" hidden></div>
-        <details class="lesson-details">
-          <summary>Where the number comes from</summary>
-          <p id="metric-description"></p>
-          <p id="metric-interpretation"></p>
-          <dl>
-            <div><dt id="lesson-source-label">What the car measures</dt><dd id="lesson-source"></dd></div>
-            <div><dt>What affects the reading</dt><dd id="lesson-caution"></dd></div>
-          </dl>
+    <div class="workspace">
+      <aside id="recordings" aria-labelledby="recordings-title" hidden>
+        <details id="recording-panel" open>
+          <summary class="recordings-heading">
+            <span class="recordings-chevron" aria-hidden="true"></span>
+            <span id="recordings-title">Recordings</span>
+            <output id="drive-count" aria-label="Selected recordings"></output>
+          </summary>
+          <fieldset id="drive-filter">
+            <legend class="recordings-legend">Drives to show</legend>
+            <div id="drive-options"></div>
+          </fieldset>
+          <details id="recording-details">
+            <summary>Trip details</summary>
+            <div id="drive-list"></div>
+          </details>
+          <div id="empty-selection" hidden>
+            <p role="status">Select a recording to see its charts.</p>
+            <button type="button" id="restore-recordings" class="notebook-button">Show all recordings</button>
+          </div>
         </details>
-      </section>
-      <aside class="comparison-note" id="comparison-note" aria-labelledby="comparison-note-title" hidden>
-        <h3 id="comparison-note-title">Across the full recordings</h3>
-        <p id="comparison-note-text"></p>
       </aside>
-    </section>
 
-    <section id="trip-notebook" class="notebook" aria-labelledby="notebook-title" hidden>
-      <h2 id="notebook-title">Trip notebook</h2>
-      <div class="notebook-grid">
-        <section class="explorer notebook-events" id="event-panel" aria-labelledby="event-title" hidden>
-          <div class="explorer-heading notebook-event-heading">
+      <div class="analysis">
+        <details open class="explorer" id="signal-explorer" aria-labelledby="metric-title" tabindex="-1">
+          <summary class="panel-summary"><h2 id="metric-title">Signal explorer</h2></summary>
+          <a href="#lesson-title" class="guide-link">Chart guide ↓</a>
+          <div class="chart-controls" id="timeline-controls">
+            <label for="metric">Metric
+              <select id="metric" aria-describedby="lesson-plain"></select>
+            </label>
+            <label for="window">Time window
+              <select id="window">
+                <option value="full">Entire recording</option>
+                <option value="60">First minute</option>
+                <option value="120">First 2 minutes</option>
+                <option value="300">First 5 minutes</option>
+                <option value="600">First 10 minutes</option>
+              </select>
+            </label>
+            <label for="axis" id="axis-control" hidden>Horizontal axis
+              <select id="axis">
+                <option value="time">Elapsed time</option>
+                <option value="distance">Observed distance</option>
+              </select>
+            </label>
+          </div>
+          <div id="event-context" class="event-context" hidden>
+            <p id="event-context-text" role="status"></p>
+            <button id="event-reset" type="button" class="notebook-button">Exit event view</button>
+          </div>
+          <div class="main-canvas">
+            <canvas id="main-chart" tabindex="0" aria-label="Selected signal chart" aria-describedby="chart-instructions">
+              Use the recording summaries and values below to compare the selected signal.
+            </canvas>
+          </div>
+          <p id="chart-instructions" class="chart-instructions">Gaps indicate missing samples. Hover or tap to inspect values, or focus the chart and use the arrow keys.</p>
+          <details open class="readings-panel">
+            <summary class="panel-summary">Readings by drive</summary>
+            <div id="metric-stats" class="metric-stats" role="group" aria-label="Selected signal statistics"></div>
+          </details>
+          <details open class="metric-lesson" aria-labelledby="lesson-title">
+            <summary class="panel-summary"><h3 id="lesson-title" tabindex="-1">Reading this chart</h3></summary>
+            <p id="lesson-plain"></p>
+            <p id="lesson-reading"></p>
+            <div id="lesson-related" hidden></div>
+            <details class="lesson-details">
+              <summary>Where the number comes from</summary>
+              <p id="metric-description"></p>
+              <p id="metric-interpretation"></p>
+              <dl>
+                <div><dt id="lesson-source-label">What the car measures</dt><dd id="lesson-source"></dd></div>
+                <div><dt>What affects the reading</dt><dd id="lesson-caution"></dd></div>
+              </dl>
+            </details>
+          </details>
+          <details open class="comparison-note" id="comparison-note" aria-labelledby="comparison-note-title" hidden>
+            <summary class="panel-summary"><h3 id="comparison-note-title">Across the full recordings</h3></summary>
+            <p id="comparison-note-text"></p>
+          </details>
+        </details>
+
+        <details open class="quick-looks-section" id="quick-section" aria-labelledby="quick-looks-title" tabindex="-1">
+          <summary class="panel-summary"><h2 id="quick-looks-title">Quick looks</h2></summary>
+          <div id="quick-looks" class="quick-looks"></div>
+        </details>
+
+        <details open id="misfire-history" class="explorer" aria-labelledby="misfire-title" tabindex="-1" hidden>
+          <summary class="panel-summary"><h2 id="misfire-title">Cylinder misfires</h2></summary>
+          <div class="explorer-heading">
             <div class="metric-heading">
-              <h3 id="event-title">Trip events</h3>
-              <p>Open an event in the signal explorer.</p>
+              <p>Choose a drive to see when the engine computer reported a higher count for each cylinder.</p>
             </div>
-            <div class="chart-controls event-controls">
-              <label for="event-drive" id="event-drive-control">Drive
-                <select id="event-drive"></select>
-              </label>
-              <label for="event-kind" id="event-kind-control">Event type
-                <select id="event-kind"></select>
+            <div class="chart-controls">
+              <label for="misfire-drive">Drive
+                <select id="misfire-drive"></select>
               </label>
             </div>
           </div>
-          <ol class="event-list" id="trip-events" aria-label="Trip events in recording order"></ol>
-          <p class="notebook-note" id="events-empty" hidden>No matching events.</p>
-        </section>
-        <section class="explorer" id="thermal-panel" aria-labelledby="thermal-title" hidden>
-          <div class="metric-heading">
-            <h3 id="thermal-title">Warm-up milestones</h3>
-            <p>How long did it take to warm up, and how far did you get? We start the clock when the engine starts and look for two readings in a row at or above each temperature. “At start” means it was already that warm.</p>
+          <div id="misfire-plots">
+            <p class="notebook-note" id="misfire-empty" hidden>This drive has no valid cylinder misfire readings.</p>
+            <details class="misfire-plot" open hidden>
+              <summary class="panel-summary">When counts rose</summary>
+              <div id="misfire-events-chart"></div>
+              <details id="misfire-log" class="lesson-details" hidden>
+                <summary>Detection intervals</summary>
+                <div></div>
+              </details>
+            </details>
+            <details class="misfire-plot" open hidden>
+              <summary class="panel-summary">Cumulative observed misfires</summary>
+              <div id="misfire-totals-chart"></div>
+            </details>
           </div>
-          <div class="notebook-table-wrap" tabindex="0" role="region" aria-labelledby="thermal-title">
-            <table class="notebook-table" id="thermal-values" aria-labelledby="thermal-title"></table>
-          </div>
-        </section>
-        <section class="explorer" id="dwell-panel" aria-labelledby="dwell-title" hidden>
-          <div class="metric-heading">
-            <h3 id="dwell-title">Time at road speeds</h3>
-            <p>A longer bar means you spent more time at those speeds. Two five-minute stretches add up to ten minutes. Time parked with the key on counts as stopped. Time with no speed readings is left out.</p>
-          </div>
-          <div class="notebook-table-wrap" tabindex="0" role="region" aria-labelledby="dwell-title">
-            <table class="notebook-table" id="dwell-values" aria-labelledby="dwell-title"></table>
-          </div>
-        </section>
-      </div>
-    </section>
+        </details>
 
-    <section class="quick-looks-section" aria-labelledby="quick-looks-title">
-      <h2 id="quick-looks-title">Quick looks</h2>
-      <p class="chart-instructions">Select a chart title to explore its readings and sensor or calculation guide.</p>
-      <div id="quick-looks" class="quick-looks"></div>
-    </section>
+        <details open id="trip-notebook" class="notebook" aria-labelledby="notebook-title" tabindex="-1" hidden>
+          <summary class="panel-summary"><h2 id="notebook-title">Trip notebook</h2></summary>
+          <div class="notebook-grid">
+            <details open class="explorer notebook-events" id="event-panel" aria-labelledby="event-title" hidden>
+              <summary class="panel-summary"><h3 id="event-title">Trip events</h3></summary>
+              <div class="explorer-heading notebook-event-heading">
+                <div class="metric-heading">
+                  <p>Open an event in the signal explorer.</p>
+                </div>
+                <div class="chart-controls event-controls">
+                  <label for="event-drive" id="event-drive-control">Drive
+                    <select id="event-drive"></select>
+                  </label>
+                  <label for="event-kind" id="event-kind-control">Event type
+                    <select id="event-kind"></select>
+                  </label>
+                </div>
+              </div>
+              <ol class="event-list" id="trip-events" aria-label="Trip events in recording order"></ol>
+              <p class="notebook-note" id="events-empty" hidden>No matching events.</p>
+            </details>
+            <details open class="explorer" id="thermal-panel" aria-labelledby="thermal-title" hidden>
+              <summary class="panel-summary"><h3 id="thermal-title">Warm-up milestones</h3></summary>
+              <div class="metric-heading">
+                <p>How long did it take to warm up, and how far did you get? We start the clock when the engine starts and look for two readings in a row at or above each temperature. “At start” means it was already that warm.</p>
+              </div>
+              <div class="notebook-table-wrap" tabindex="0" role="region" aria-labelledby="thermal-title">
+                <table class="notebook-table" id="thermal-values" aria-labelledby="thermal-title"></table>
+              </div>
+            </details>
+            <details open class="explorer" id="dwell-panel" aria-labelledby="dwell-title" hidden>
+              <summary class="panel-summary"><h3 id="dwell-title">Time at road speeds</h3></summary>
+              <div class="metric-heading">
+                <p>A longer bar means you spent more time at those speeds. Two five-minute stretches add up to ten minutes. Time parked with the key on counts as stopped. Time with no speed readings is left out.</p>
+              </div>
+              <div class="notebook-table-wrap" tabindex="0" role="region" aria-labelledby="dwell-title">
+                <table class="notebook-table" id="dwell-values" aria-labelledby="dwell-title"></table>
+              </div>
+            </details>
+          </div>
+        </details>
 
-    <section class="explorer operating-map" id="operating-map" aria-labelledby="operating-title" hidden>
-      <div class="explorer-heading">
-        <div class="metric-heading">
-          <h2 id="operating-title">Operating map</h2>
-          <p>How did the car behave when you were going about the same speed on both drives?</p>
-        </div>
-        <div class="chart-controls">
-          <label for="operating-metric">Vertical axis
-            <select id="operating-metric" aria-describedby="operating-interpretation"></select>
-          </label>
-          <label for="operating-load" id="operating-load-control" hidden>Engine load
-            <select id="operating-load">
-              <option value="all">Any load</option>
-              <option value="low">Below 35%</option>
-              <option value="medium">35% to below 65%</option>
-              <option value="high">65% and above</option>
-            </select>
-          </label>
-        </div>
+        <details open class="explorer operating-map" id="operating-map" aria-labelledby="operating-title" tabindex="-1" hidden>
+          <summary class="panel-summary"><h2 id="operating-title">Operating map</h2></summary>
+          <div class="explorer-heading">
+            <div class="metric-heading">
+              <p>How did the car behave when you were going about the same speed on both drives?</p>
+            </div>
+            <div class="chart-controls">
+              <label for="operating-metric">Vertical axis
+                <select id="operating-metric" aria-describedby="operating-interpretation"></select>
+              </label>
+              <label for="operating-load" id="operating-load-control" hidden>Engine load
+                <select id="operating-load">
+                  <option value="all">Any load</option>
+                  <option value="low">Below 35%</option>
+                  <option value="medium">35% to below 65%</option>
+                  <option value="high">65% and above</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <p class="signal-guide" id="operating-interpretation"></p>
+          <div class="main-canvas">
+            <canvas id="operating-chart" tabindex="0" aria-label="Operating map" aria-describedby="operating-interpretation operating-instructions">
+              Use the comparison table below to read the values.
+            </canvas>
+          </div>
+          <p id="operating-instructions" class="chart-instructions">Pick one speed range, then compare the colored dots above it. Each dot is the middle reading for one drive. The line through it covers the middle half of the readings. A longer line means more variation at those speeds. A drive needs three readings in a range to get a dot.</p>
+          <details open class="readings-panel">
+            <summary class="panel-summary">Readings by drive</summary>
+            <div id="operating-stats" class="metric-stats" role="group" aria-label="Operating map coverage"></div>
+          </details>
+          <details class="operating-table">
+            <summary>Speed band values</summary>
+            <div class="operating-table-scroll" tabindex="0" role="region" aria-label="Speed band values">
+              <table id="operating-values"></table>
+            </div>
+          </details>
+        </details>
       </div>
-      <p class="signal-guide" id="operating-interpretation"></p>
-      <div class="main-canvas">
-        <canvas id="operating-chart" tabindex="0" aria-label="Operating map" aria-describedby="operating-interpretation operating-instructions">
-          Use the comparison table below to read the values.
-        </canvas>
-      </div>
-      <p id="operating-instructions" class="chart-instructions">Pick one speed range, then compare the colored dots above it. Each dot is the middle reading for one drive. The line through it covers the middle half of the readings. A longer line means more variation at those speeds. A drive needs three readings in a range to get a dot.</p>
-      <div id="operating-stats" class="metric-stats" role="group" aria-label="Operating map coverage"></div>
-      <details class="operating-table">
-        <summary>Speed band values</summary>
-        <div class="operating-table-scroll" tabindex="0" role="region" aria-label="Speed band values">
-          <table id="operating-values"></table>
-        </div>
-      </details>
-    </section>
+    </div>
   </main>
 
   <template id="quick-card-template">
     <article class="quick-card">
-      <h3><button type="button" class="quick-title"></button></h3>
+      <h3></h3>
+      <button type="button" class="quick-title">Explore in Signals</button>
       <div class="quick-canvas"><canvas role="img"></canvas></div>
-      <div class="quick-summary"></div>
+      <table class="quick-summary">
+        <thead><tr><th scope="col">Drive</th><th scope="col" class="quick-statistic"></th></tr></thead>
+        <tbody></tbody>
+      </table>
     </article>
   </template>
   <script type="application/json" id="capture-data">__VIEWER_DATA__</script>
   <script>
 __VIEWER_CHART__
+  </script>
+  <script>
+__VIEWER_MISFIRES__
   </script>
   <script>
 __VIEWER_APP__

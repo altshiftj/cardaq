@@ -143,12 +143,13 @@
     return drives.map((drive) => ({
       label: drive.name,
       color: drive.color,
+      dashed: drive.dashed,
       points: drive.series[id] ?? [],
     }));
   }
 
   function distanceSeries(drives, id, end) {
-    return drives.map(({ name, color, series }) => {
+    return drives.map(({ name, color, dashed, series }) => {
       const sourcePoints = series[id] ?? [];
       const distance = series[distanceId] ?? [];
       const points = [];
@@ -178,7 +179,7 @@
         points.push([position, value]);
         sampleTimes.push(time);
       }
-      return { label: name, color, points, sourcePoints, sampleTimes, segmentBreaks };
+      return { label: name, color, dashed, points, sourcePoints, sampleTimes, segmentBreaks };
     });
   }
 
@@ -306,7 +307,7 @@
       points.push([center, quantile(observations, 0.5), quantile(observations, 0.25),
         quantile(observations, 0.75), observations.length]);
     }
-    return { label: drive.name, color: drive.color, points: points.sort((a, b) => a[0] - b[0]) };
+    return { label: drive.name, color: drive.color, dashed: drive.dashed, points: points.sort((a, b) => a[0] - b[0]) };
   }
 
   function speedBandText(center) {
@@ -353,12 +354,10 @@
     table.closest("details").hidden = !centers.length;
   }
 
-  function initOperatingMap(drives, metrics) {
+  function initOperatingMap(getDrives, metrics) {
     const map = byId("operating-map");
     const usableMetrics = operatingMetrics.filter(([id]) => metrics[id]);
-    const speedAvailable = drives.some(({ series }) =>
-      series.ecm_vehicle_speed_kph?.length || series.honda_vehicle_speed_kph?.length);
-    if (!usableMetrics.length || !speedAvailable) return;
+    if (!usableMetrics.length) return;
 
     const metricSelect = byId("operating-metric");
     const loadSelect = byId("operating-load");
@@ -367,18 +366,21 @@
       metricSelect.append(new Option(unit ? `${label} (${unit})` : label, id));
     }
     byId("operating-load-control").hidden = !metrics.ecm_calculated_load_pct;
-    map.hidden = false;
     const canvas = byId("operating-chart");
     const chart = new window.CardaQChart(canvas, { interactive: true });
-    const maxSpeed = drives.reduce((maximum, { series }) => Math.max(
-      maximum,
-      summarize(series.ecm_vehicle_speed_kph ?? [])?.max ?? 0,
-      summarize(series.honda_vehicle_speed_kph ?? [])?.max ?? 0,
-    ), 0);
-    const range = [0, (Math.floor(maxSpeed / speedBand) + 1) * speedBand];
     const xAxis = { bucketWidth: speedBand, formatCursor: speedBandText, label: "Road speed (km/h)" };
 
     function render() {
+      const drives = getDrives();
+      map.hidden = !drives.some(({ series }) =>
+        series.ecm_vehicle_speed_kph?.length || series.honda_vehicle_speed_kph?.length);
+      if (map.hidden) return;
+      const maxSpeed = drives.reduce((maximum, { series }) => Math.max(
+        maximum,
+        summarize(series.ecm_vehicle_speed_kph ?? [])?.max ?? 0,
+        summarize(series.honda_vehicle_speed_kph ?? [])?.max ?? 0,
+      ), 0);
+      const range = [0, (Math.floor(maxSpeed / speedBand) + 1) * speedBand];
       const id = metricSelect.value;
       const metric = metrics[id];
       const series = drives.map((drive) => operatingBins(drive, id, loadSelect.value));
@@ -402,7 +404,7 @@
 
     metricSelect.addEventListener("change", render);
     loadSelect.addEventListener("change", render);
-    render();
+    return render;
   }
 
   function notebookHeader(label, drives) {
@@ -438,6 +440,7 @@
       }
       return values;
     });
+    byId("thermal-panel").hidden = !targets.size;
     if (!targets.size) return false;
     const ordered = [...targets].sort(([, first], [, second]) =>
       signalOrder.get(first.label) - signalOrder.get(second.label) || first.target - second.target,
@@ -466,7 +469,6 @@
       rows.append(row);
     }
     byId("thermal-values").replaceChildren(notebookHeader("Threshold", drives), rows);
-    byId("thermal-panel").hidden = false;
     return true;
   }
 
@@ -483,6 +485,7 @@
       }
       return values;
     });
+    byId("dwell-panel").hidden = !bands.size;
     if (!bands.size) return false;
     const rows = element("tbody");
     for (const label of bands) {
@@ -509,7 +512,6 @@
     const table = byId("dwell-values");
     table.style.setProperty("--dwell-drives", drives.length);
     table.replaceChildren(notebookHeader("Speed band", drives), rows);
-    byId("dwell-panel").hidden = false;
     return true;
   }
 
@@ -519,22 +521,26 @@
     return start === end ? start : `${start}–${end}`;
   }
 
-  function initTripEvents(drives, openEvent) {
+  function renderTripEvents(drives, openEvent) {
     const recordings = drives.map((drive) => ({
       drive,
       events: (drive.events ?? []).filter(({ start, end, kind, label }) =>
         Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end >= start && kind && label,
       ).sort((a, b) => a.start - b.start),
     })).filter(({ events }) => events.length);
+    byId("event-panel").hidden = !recordings.length;
     if (!recordings.length) return false;
     const driveSelect = byId("event-drive");
     const kindSelect = byId("event-kind");
     const eventList = byId("trip-events");
-    for (const [index, { drive }] of recordings.entries()) driveSelect.add(new Option(drive.name, index));
+    const previousDrive = driveSelect.value;
+    driveSelect.replaceChildren(...recordings.map(({ drive }) => new Option(drive.name, drive.id)));
+    if (recordings.some(({ drive }) => drive.id === previousDrive)) driveSelect.value = previousDrive;
+    const current = () => recordings[driveSelect.selectedIndex];
     byId("event-drive-control").hidden = recordings.length === 1;
 
     function renderEvents() {
-      const { drive, events } = recordings[Number(driveSelect.value)];
+      const { drive, events } = current();
       const buttons = [];
       for (const event of events) {
         if (kindSelect.value && event.kind !== kindSelect.value) continue;
@@ -556,7 +562,7 @@
     }
 
     function renderFilter() {
-      const { events } = recordings[Number(driveSelect.value)];
+      const { events } = current();
       const kinds = new Map(events.map(({ kind, label }) => [kind, label]));
       const previous = kindSelect.value;
       kindSelect.replaceChildren(new Option("All events", ""));
@@ -565,10 +571,9 @@
       byId("event-kind-control").hidden = kinds.size < 2;
       renderEvents();
     }
-    driveSelect.addEventListener("change", renderFilter);
-    kindSelect.addEventListener("change", renderEvents);
+    driveSelect.onchange = renderFilter;
+    kindSelect.onchange = renderEvents;
     renderFilter();
-    byId("event-panel").hidden = false;
     return true;
   }
 
@@ -577,24 +582,113 @@
     return [Math.max(0, event.start - context), Math.min(endOfSeries, event.end + context)];
   }
 
+  function initSectionNav() {
+    const nav = byId("section-nav");
+    const header = nav.closest("header");
+    const entries = Array.from(nav.querySelectorAll("a"), link => ({
+      link, section: byId(link.hash.slice(1)),
+    }));
+    let visible = [];
+    let queued = false;
+
+    function highlight() {
+      queued = false;
+      const inset = header.offsetHeight + 20;
+      let current = visible[0];
+      for (const entry of visible) {
+        if (entry.section.getBoundingClientRect().top > inset) break;
+        current = entry;
+      }
+      if (window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+        current = visible.at(-1);
+      }
+      for (const entry of entries) {
+        if (entry === current) entry.link.setAttribute("aria-current", "location");
+        else entry.link.removeAttribute("aria-current");
+      }
+    }
+
+    window.addEventListener("scroll", () => {
+      if (!queued) {
+        queued = true;
+        requestAnimationFrame(highlight);
+      }
+    }, { passive: true });
+    function sizeHeader() {
+      document.documentElement.style.setProperty("--masthead-height", `${header.offsetHeight}px`);
+      highlight();
+    }
+    if (typeof ResizeObserver === "function") new ResizeObserver(sizeHeader).observe(header);
+    else window.addEventListener("resize", sizeHeader);
+
+    return () => {
+      visible = entries.filter(({ section }) => !section.hidden);
+      for (const { link, section } of entries) link.hidden = section.hidden;
+      nav.hidden = !visible.length;
+      sizeHeader();
+    };
+  }
+
   function init() {
-    const { drives, metrics: definitions, comparisonNotes = {} } = JSON.parse(byId("capture-data").textContent);
+    const { drives: recordings, metrics: definitions, comparisonNotes = {} } = JSON.parse(byId("capture-data").textContent);
     const metrics = Object.fromEntries(Object.entries(definitions).map(([id, metric]) => [
       id, metricPresentation(metric),
     ]));
-    drives.forEach((drive, index) => { drive.color = colors[index % colors.length]; });
-    byId("drive-list").replaceChildren(...drives.map(driveCard));
+    const filter = byId("drive-filter");
+    const driveOptions = byId("drive-options");
+    const toggles = recordings.map((drive, index) => {
+      drive.id = String(index);
+      drive.color = colors[index % colors.length];
+      drive.dashed = index % 2 === 1;
+      const label = element("label", "recording-choice");
+      label.style.setProperty("--drive-color", drive.color);
+      label.style.setProperty("--trace-style", drive.dashed ? "dashed" : "solid");
+      const checkbox = element("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = true;
+      const name = element("span", "recording-name", drive.name);
+      name.id = `recording-name-${index}`;
+      checkbox.setAttribute("aria-labelledby", name.id);
+      const distance = drive.summary?.distanceKm;
+      const facts = [duration(drive.span)];
+      if (Number.isFinite(distance)) facts.push(`${tripNumber.format(distance)} km`);
+      const text = element("span", "recording-copy");
+      text.append(name, element("span", "recording-facts", facts.join(" · ")));
+      label.append(checkbox, text);
+      driveOptions.append(label);
+      return checkbox;
+    });
+    byId("recordings").hidden = false;
+    for (const [id, open] of [["collapse-all", false], ["expand-all", true]]) {
+      byId(id).addEventListener("click", () => {
+        for (const panel of document.querySelectorAll(".workspace details")) panel.open = open;
+      });
+    }
+    byId("fold-actions").hidden = false;
+    function revealTarget(hash) {
+      const target = byId(hash.slice(1));
+      if (target === byId("top")) byId("recording-panel").open = true;
+      for (let panel = target?.closest("details"); panel; panel = panel.parentElement.closest("details")) {
+        panel.open = true;
+      }
+    }
+    document.addEventListener("click", event => {
+      const link = event.target.closest("a[href^='#']");
+      if (link) revealTarget(link.hash);
+    });
+    window.addEventListener("hashchange", () => revealTarget(location.hash));
+    let drives = recordings;
 
     const metric = byId("metric");
     const timeWindow = byId("window");
     const axis = byId("axis");
-    const canPlotDistance = drives.some(({ series }) => (series[distanceId]?.at(-1)?.[1] ?? 0) > 0);
-    byId("axis-control").hidden = !canPlotDistance;
-    byId("timeline-controls").classList.toggle("has-distance-axis", canPlotDistance);
     const mainCanvas = byId("main-chart");
     const chart = new window.CardaQChart(mainCanvas, { interactive: true });
     const quickMetrics = favorites.filter(({ id }) => metrics[id]);
     const metricOrder = [...new Set([...quickMetrics.map(({ id }) => id), ...Object.keys(metrics)])];
+    const scope = [`${recordings.length} recording${recordings.length === 1 ? "" : "s"}`];
+    if (metricOrder.length) scope.push(`${metricOrder.length} signal${metricOrder.length === 1 ? "" : "s"}`);
+    byId("report-scope").textContent = scope.join("  /  ");
     addMetricOptions(metric, metrics, metricOrder);
     let selection;
 
@@ -650,7 +744,8 @@
           links.append(button);
         }
       }
-      const note = timeWindow.value === "full" ? comparisonNotes[metric.value] : "";
+      const note = timeWindow.value === "full" && drives.length === recordings.length
+        ? comparisonNotes[metric.value] : "";
       byId("comparison-note").hidden = !note;
       byId("comparison-note-text").textContent = note || "";
       const chartAxis = xAxis ? "observed distance" : "elapsed time";
@@ -685,7 +780,7 @@
       timeWindow.focus();
     });
 
-    const haveEvents = initTripEvents(drives, (event, drive) => {
+    function openEvent(event, drive) {
       if (!selection) timeWindow.add(new Option("Selected event", "event"));
       selection = { event, drive };
       axis.value = "time";
@@ -699,40 +794,102 @@
         );
         if (match) metric.value = match;
       }
+      byId("signal-explorer").open = true;
       render();
       byId("signal-explorer").scrollIntoView({ block: "start" });
       mainCanvas.focus({ preventScroll: true });
-    });
-    const haveThermal = warmupTable(drives);
-    const haveDwell = dwellTable(drives);
-    byId("trip-notebook").hidden = !(haveEvents || haveThermal || haveDwell);
+    }
 
     const quickLooks = byId("quick-looks");
-    quickLooks.closest("section").hidden = quickMetrics.length === 0;
-    quickLooks.classList.toggle("quick-looks-four", quickMetrics.length === 4);
-    for (const { id, title, summary } of quickMetrics) {
+    const updateQuickLooks = quickMetrics.map(({ id, title, summary }) => {
       const quickMetric = metrics[id];
       const { unit, style, formatValue } = quickMetric;
-      const series = lineSeries(drives, id);
       const fragment = byId("quick-card-template").content.cloneNode(true);
       const button = fragment.querySelector("button");
       const canvas = fragment.querySelector("canvas");
-      button.textContent = title;
+      fragment.querySelector("h3").textContent = title;
+      const arrow = element("span", "quick-arrow", "→");
+      arrow.setAttribute("aria-hidden", "true");
+      button.append(arrow);
       button.setAttribute("aria-label", `Open ${title.toLowerCase()} in the signal explorer`);
       button.addEventListener("click", () => {
+        byId("signal-explorer").open = true;
         metric.value = id;
         timeWindow.value = "full";
         render();
-        metric.focus();
+        byId("signal-explorer").scrollIntoView({ block: "start" });
+        metric.focus({ preventScroll: true });
       });
       canvas.setAttribute("aria-label", chartLabel(title, unit));
-      const labels = series.map(({ label, points }) => `${label} ${quickStat(points, summary, quickMetric)}`);
-      fragment.querySelector(".quick-summary").textContent = `${summary} · ${labels.join(" / ")}`;
+      const table = fragment.querySelector(".quick-summary");
+      table.setAttribute("aria-label", `${title} by drive`);
+      table.querySelector(".quick-statistic").textContent = summary;
+      const readings = table.tBodies[0];
       quickLooks.append(fragment);
-      new window.CardaQChart(canvas).render({ series, unit, style, formatValue, range: [0, seriesEnd(series)] });
+      const quickChart = new window.CardaQChart(canvas);
+      return () => {
+        const series = lineSeries(drives, id);
+        readings.replaceChildren(...series.map(({ label, color, points }) => {
+          const row = element("tr");
+          const heading = element("th");
+          heading.scope = "row";
+          const name = element("span", "quick-drive-name");
+          name.append(swatch(color), element("span", "", label));
+          heading.append(name);
+          row.append(heading, element("td", "", quickStat(points, summary, quickMetric)));
+          return row;
+        }));
+        quickChart.render({ series, unit, style, formatValue, range: [0, seriesEnd(series)] });
+      };
+    });
+    const updateOperatingMap = initOperatingMap(() => drives, metrics);
+    const updateNav = initSectionNav();
+    const misfireDrive = byId("misfire-drive");
+    const misfirePlots = byId("misfire-plots");
+    function drawMisfires() {
+      window.renderMisfirePlots(drives[misfireDrive.selectedIndex], misfirePlots);
     }
-    render();
-    initOperatingMap(drives, metrics);
+    misfireDrive.addEventListener("change", drawMisfires);
+
+    function updateSelection() {
+      drives = recordings.filter((_, index) => toggles[index].checked);
+      if (selection && !drives.includes(selection.drive)) {
+        if (timeWindow.value === "event") timeWindow.value = "full";
+        timeWindow.querySelector('option[value="event"]').remove();
+        selection = undefined;
+      }
+      const canPlotDistance = drives.some(({ series }) => (series[distanceId]?.at(-1)?.[1] ?? 0) > 0);
+      byId("axis-control").hidden = !canPlotDistance;
+      byId("timeline-controls").classList.toggle("has-distance-axis", canPlotDistance);
+      if (drives.length && !canPlotDistance) axis.value = "time";
+      byId("drive-list").replaceChildren(...drives.map(driveCard));
+      byId("drive-count").textContent = `${drives.length} of ${recordings.length}`;
+      byId("recording-details").hidden = !drives.length;
+      byId("empty-selection").hidden = drives.length > 0;
+      byId("signal-explorer").hidden = !drives.length || !metricOrder.length;
+      const previousDrive = misfireDrive.value;
+      misfireDrive.replaceChildren(...drives.map((drive) => new Option(drive.name, drive.id)));
+      if (drives.some((drive) => drive.id === previousDrive)) misfireDrive.value = previousDrive;
+      byId("misfire-history").hidden = !drives.length;
+      drawMisfires();
+      byId("quick-section").hidden = !drives.length || !quickMetrics.length;
+      const haveEvents = renderTripEvents(drives, openEvent);
+      const haveThermal = warmupTable(drives);
+      const haveDwell = dwellTable(drives);
+      byId("trip-notebook").hidden = !(haveEvents || haveThermal || haveDwell);
+      if (drives.length && metricOrder.length) render();
+      for (const update of updateQuickLooks) update();
+      updateOperatingMap?.();
+      updateNav();
+    }
+    filter.addEventListener("change", updateSelection);
+    byId("restore-recordings").addEventListener("click", () => {
+      for (const checkbox of toggles) checkbox.checked = true;
+      updateSelection();
+      toggles[0].focus();
+    });
+    updateSelection();
+    revealTarget(location.hash);
   }
 
   try {

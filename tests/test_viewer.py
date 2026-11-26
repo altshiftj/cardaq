@@ -110,6 +110,48 @@ class ViewerTests(unittest.TestCase):
         self.assertEqual(data["metrics"][metric]["group"], "Shifter verification")
         self.assertEqual(data["metrics"][metric]["style"], "step")
 
+    def test_misfire_plots_use_valid_cycle_replies_and_preserve_their_times(self) -> None:
+        def row(time, cylinder, count, *, test=0x0C, event="reply"):
+            mid = 0xA1 + cylinder
+            reply = (
+                f"18DAF110 10 0A 46 {mid:02X} {test:02X} 24 {count >> 8:02X} {count & 0xFF:02X} | "
+                "18DAF110 21 00 00 FF FF"
+            )
+            return f"{time},{time - 0.1},{event},06{mid:02X},{reply},\n"
+
+        header = f"elapsed_s,request_elapsed_s,event,request,reply,{SPEED}\n"
+        capture = self.capture(
+            "counters.csv",
+            header + "0,,,010D,,0\n"
+            + row(105, 2, 3) + row(45, 2, 3)  # Initial retained count, repeated. Sort by reply time.
+            + row(130, 2, 12, test=0x0B) + row(140, 2, 99, event="no_data")
+            + "160,159.9,reply,06A3,18DAF110 10 0A 46 A3 0C 24 00 67,\n"  # Truncated.
+            + row(705, 2, 5) + row(765, 2, 0) + row(825, 2, 1)
+            + row(706, 3, 0) + row(826, 3, 1) + row(810, 4, 0, test=0x0B),
+        )
+        second = self.capture("second.csv", header + row(1, 2, 8))
+        write_viewer([capture, second], self.output)
+        drive, next_drive = self.data()["drives"]
+        cylinders = drive["misfires"]
+        self.assertEqual([row["cylinder"] for row in cylinders], [1, 2, 3, 4])
+        self.assertEqual(cylinders[0]["polls"], [])
+        self.assertEqual(cylinders[3]["polls"], [])
+        self.assertEqual(cylinders[1]["polls"], [
+            {"seconds": 45, "count": 3, "previousSeconds": None, "delta": None, "cumulative": 0},
+            {"seconds": 105, "count": 3, "previousSeconds": 45, "delta": 0, "cumulative": 0},
+            {"seconds": 705, "count": 5, "previousSeconds": 105, "delta": 2, "cumulative": 2},
+            {"seconds": 765, "count": 0, "previousSeconds": 705, "delta": -5, "cumulative": 2},
+            {"seconds": 825, "count": 1, "previousSeconds": 765, "delta": 1, "cumulative": 3},
+        ])
+        self.assertEqual(cylinders[2]["polls"][-1], {
+            "seconds": 826, "count": 1, "previousSeconds": 706, "delta": 1, "cumulative": 1,
+        })
+        self.assertEqual(next_drive["misfires"][1]["polls"], [
+            {"seconds": 1, "count": 8, "previousSeconds": None, "delta": None, "cumulative": 0},
+        ])
+        self.assertEqual(drive["span"], 826)
+        self.assertFalse(any("misfires" in key for key in drive["series"]))
+
     def test_rejects_mismatched_labels_and_protects_the_input(self) -> None:
         capture = self.capture("commute.csv", f"elapsed_s,{SPEED}\n0,0\n")
         original = capture.read_bytes()

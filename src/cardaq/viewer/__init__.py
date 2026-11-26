@@ -13,6 +13,7 @@ from pathlib import Path
 from statistics import median
 from tempfile import NamedTemporaryFile
 
+from ..monitors import diagnostic_observations
 from ..pilot_measurements import MEASUREMENT_COLUMNS, transmission_status_byte
 from .derived import ADDITIONAL_METRICS, derive_series
 from .derived_lessons import DERIVED_LESSONS
@@ -28,10 +29,12 @@ _UNITS = {"_kph": "km/h", "_rpm": "rpm", "_kpa": "kPa", "_c": "°C", "_v": "V", 
 _SOURCES = {"ecm": "ECM", "tcm": "TCM", "honda": "Honda"}
 _ASSETS = {
     "__VIEWER_CSS__": "dashboard.css",
+    "__VIEWER_RECORDINGS__": "recordings.css",
     "__VIEWER_CHART__": "chart.js",
+    "__VIEWER_MISFIRES__": "misfires.js",
     "__VIEWER_APP__": "app.js",
 }
-_PLACEHOLDERS = re.compile(r"__VIEWER_(?:CSS|CHART|APP|DATA)__")
+_PLACEHOLDERS = re.compile(r"__VIEWER_(?:CSS|RECORDINGS|CHART|MISFIRES|APP|DATA)__")
 _SHIFTER_STATUS = "tcm_2322_status_byte_23"
 _REPLY_LATENCY = "observed_reply_latency_ms"
 _LESSONS = {
@@ -243,12 +246,40 @@ def read_capture_samples(
     return CaptureSamples(started, timestamp_elapsed, series, reply_times)
 
 
+def _misfire_polls(series: dict) -> list[dict]:
+    """Keep the reply timestamp of each cycle-counter reading, including unchanged counts."""
+    cylinders = []
+    for cylinder in range(1, 5):
+        polls = []
+        previous_seconds = previous_count = None
+        cumulative = 0
+        for seconds, count in series.get(f"ecm_cyl_{cylinder}_misfires_cycle", []):
+            delta = None if previous_count is None else count - previous_count
+            if delta is not None and delta > 0:
+                cumulative += delta
+            polls.append({
+                "seconds": seconds, "count": count, "previousSeconds": previous_seconds,
+                "delta": delta, "cumulative": cumulative,
+            })
+            previous_seconds, previous_count = seconds, count
+        cylinders.append({"cylinder": cylinder, "polls": polls})
+    return cylinders
+
+
 def _read_capture(path: Path, label: str) -> dict:
-    samples = read_capture_samples(path)
-    series = samples.series
+    samples = read_capture_samples(path, extra_decoder=diagnostic_observations)
+    misfires = _misfire_polls(samples.series)
+    series = {
+        key: points for key, points in samples.series.items()
+        if key in MEASUREMENT_COLUMNS or key in _VIEWER_METRICS
+    }
     started = samples.timestamp
     reply_times = samples.reply_times
-    span = max(points[-1][0] for points in series.values())
+    end_times = [points[-1][0] for points in series.values()]
+    end_times.extend(cyl["polls"][-1]["seconds"] for cyl in misfires if cyl["polls"])
+    if not end_times:
+        raise ValueError(f"{path} has no decoded samples to plot.")
+    span = max(end_times)
     series.update(derive_series(series))
     series.update(derive_trip_series(series))
     if reply_times:
@@ -262,6 +293,7 @@ def _read_capture(path: Path, label: str) -> dict:
             if started else None
         ),
         "span": span,
+        "misfires": misfires,
         "series": series,
         "events": trip_events(series),
         "thermal": thermal_milestones(series),

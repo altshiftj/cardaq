@@ -1,0 +1,152 @@
+#recordings {
+  align-self: start;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.recordings-heading {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  min-height: 1.8rem;
+  cursor: pointer;
+  list-style: none;
+}
+.recordings-heading::-webkit-details-marker { display: none; }
+.recordings-heading:hover #recordings-title { color: var(--mint); }
+#recording-panel[open] > summary { margin-bottom: .8rem; }
+.recordings-chevron {
+  width: .48rem;
+  height: .48rem;
+  border: solid var(--mint);
+  border-width: 0 2px 2px 0;
+  transform: rotate(-45deg);
+}
+#recording-panel[open] .recordings-chevron { transform: rotate(45deg); }
+
+#recordings-title {
+  font-size: 1.075rem;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -.02em;
+}
+
+#drive-count, .recording-facts, #recordings .drive-meta {
+  color: var(--muted);
+  font-size: .75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#drive-count { margin-inline-start: auto; white-space: nowrap; }
+#drive-filter { min-width: 0; margin: 0; padding: 0; border: 0; }
+
+.recordings-legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+#drive-options, #drive-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: .35rem;
+}
+
+.recording-choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: .4rem;
+  min-width: 0;
+  padding: .47rem .55rem;
+  border: 1px solid transparent;
+  border-inline-start: 2px var(--trace-style) var(--drive-color);
+  border-radius: 0 .35rem .35rem 0;
+  background: var(--surface-deep);
+  cursor: pointer;
+}
+
+.recording-choice:hover { border-color: var(--line); border-inline-start-color: var(--drive-color); }
+.recording-choice:focus-within { outline: 2px solid var(--mint); outline-offset: 1px; }
+.recording-choice input {
+  grid-column: 2;
+  grid-row: 1;
+  width: 1rem;
+  height: 1rem;
+  margin: .15rem 0 0;
+  accent-color: var(--drive-color);
+  cursor: pointer;
+}
+
+.recording-copy { grid-column: 1; grid-row: 1; display: grid; min-width: 0; }
+.recording-name { font-size: .875rem; font-weight: 620; line-height: 1.35; overflow-wrap: anywhere; }
+.recording-facts { margin-top: .13rem; font-size: .75rem; line-height: 1.3; }
+.recording-choice:has(input:not(:checked)) { border-inline-start-color: var(--line); background: transparent; }
+.recording-choice input:not(:checked) + .recording-copy { color: var(--muted); }
+
+#recording-details, #empty-selection {
+  margin-top: .75rem;
+  border-top: 1px solid var(--line);
+}
+
+#recording-details summary {
+  width: fit-content;
+  margin-top: .45rem;
+  padding: .2rem 0;
+  font-size: .84rem;
+  font-weight: 570;
+  cursor: pointer;
+}
+
+#recording-details summary::marker { color: var(--muted); }
+#recording-details summary:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+#empty-selection { padding-top: .6rem; font-size: .875rem; }
+#restore-recordings { margin-top: .45rem; }
+#drive-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: .8rem 1.25rem; margin-top: .65rem; }
+
+#recordings .drive-card { min-width: 0; }
+#recordings .drive-name {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .85rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+#recordings .drive-meta { margin: .18rem 0; }
+#recordings .drive-stats { margin: .35rem 0 0; font-size: .8rem; }
+#recordings .drive-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: .4rem;
+  border-top: 1px solid var(--line);
+  padding-block: .21rem;
+}
+
+#recordings .drive-stat dt { color: var(--muted); }
+#recordings .drive-stat dd { text-align: end; font-variant-numeric: tabular-nums; }
+
+@media (min-width: 64rem) {
+  .workspace:has(#recording-panel:not([open])) { grid-template-columns: 3rem minmax(0, 1fr); }
+  #recordings:has(#recording-panel:not([open])) { padding: .25rem; }
+  #recording-panel:not([open]) > summary {
+    flex-direction: column;
+    gap: .9rem;
+    padding-block: .8rem;
+  }
+  #recording-panel:not([open]) #recordings-title { writing-mode: vertical-rl; font-size: .9rem; }
+  #recording-panel:not([open]) #drive-count { display: none; }
+}
+
+@media (max-width: 38rem) {
+  #recordings { padding: .8rem; }
+  #drive-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .recording-choice:only-child { grid-column: 1 / -1; }
+}
