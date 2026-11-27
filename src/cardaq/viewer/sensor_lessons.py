@@ -204,6 +204,24 @@ SENSOR_LESSONS.update({
         "This field's identity is provisional. Matching RPM leaves the clutch command unknown. "
         "Small offsets can also arise because the engine and turbine fields arrive at different times.",
     ),
+    "ecm_indicated_torque_pct": _lesson(
+        "How much turning effort does the computer estimate the cylinders are producing?",
+        "Mode 01 PID 62 reports indicated engine torque as a percentage of PID 63.",
+        "At 68% and a reference of 185 N·m, the cylinders develop an estimated 126 N·m before friction.",
+        "A change in either the percentage or the reference can change the result in N·m.",
+    ),
+    "ecm_reference_torque_nm": _lesson(
+        "This is the number of newton-metres the computer assigns to 100% torque.",
+        "Mode 01 PID 63 reports a two-byte reference in N·m.",
+        "Plot the reference alongside RPM to see where the torque scale changes during a drive.",
+        "The Civic reports a varying reference. Absolute torque estimates depend on how its ECU uses this scale.",
+    ),
+    "ecm_friction_torque_pct": _lesson(
+        "The engine uses some of the cylinders' turning effort to keep its own parts moving.",
+        "Mode 01 PID 8E reports the ECU's friction estimate as a percentage of reference torque.",
+        "At 11% and a reference of 185 N·m, the estimated friction accounts for about 20 N·m.",
+        "Friction and indicated torque arrive in separate replies. Changes between polls affect their difference.",
+    ),
     "ecm_engine_coolant_c": _lesson(
         "This is how warm the engine computer says the coolant is.",
         "The engine controller supplies a single temperature in the standard PID 05 reply.",

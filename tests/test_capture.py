@@ -18,7 +18,9 @@ from serial import Serial
 from cardaq.adapter import AdapterError
 from cardaq.capture import record
 from cardaq.config import SerialSettings
+from cardaq.obd import EcuPids, SweepResult
 from cardaq.viewer import read_capture_samples, write_viewer
+from cardaq.viewer.derived import derive_series
 
 
 _ENGINE_OFF = b"18 DA F1 10 04 41 0C 00 00"
@@ -244,6 +246,28 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(result.stop_reason, "stop_requested")
         self.assertEqual(sum(msg.startswith("Ready") for msg in messages), 1)
         self.assertEqual([r["event"] for r in self.rows() if r["request"] == "0108"], ["adapter_status", "reply"])
+
+    def test_standard_polling_keeps_advertised_crank_inputs_within_one_cycle(self) -> None:
+        pids = (0x05, 0x0C, 0x0D, 0x62, 0x63, 0x8E)
+        inventory = SweepResult((EcuPids("7E8", pids),), ())
+        frames = {
+            b"010C": b"04 41 0C 1F 40", b"010D": b"03 41 0D 76", b"0162": b"03 41 62 C1",
+            b"0163": b"04 41 63 00 B9", b"018E": b"03 41 8E 88", b"0105": b"03 41 05 63",
+        }
+        def exchange(_port, command, _timeout):
+            if command == b"ATH0":
+                return (b"OK",)
+            self.clock.sleep(0.125)
+            return (b"7E8 " + frames[command],)
+
+        with patch("cardaq.capture.discover_standard", return_value=inventory), patch("cardaq.capture.request", exchange):
+            result = record(self.settings, self.output, 0.75, profile="standard", notify=lambda _: None)
+        self.assertEqual(result.replies, len(pids))
+        rows = [row["request"] for row in self.rows() if row["event"] == "reply"]
+        self.assertEqual(rows, ["010C", "010D", "0162", "0163", "018E", "0105"])
+        output = derive_series(read_capture_samples(result.path).series)
+        self.assertEqual(output["derived_crank_torque_nm"], [[0.5, 105.45]])
+        self.assertAlmostEqual(output["derived_crank_power_kw"][0][1], 22.0854, places=3)
 
     def assert_finished(self, result, reason: str) -> list[dict[str, str]]:
         self.assertEqual(result.path, self.output)

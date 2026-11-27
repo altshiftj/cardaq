@@ -3,13 +3,15 @@
 from bisect import bisect_left
 from collections.abc import Iterator
 from itertools import pairwise
-from math import log
+from math import log, tau
 
-from .series import SPEED_RPM_GAP_SECONDS, Series
+from .series import SPEED_RPM_GAP_SECONDS, Series, nearby
 
 
 _TCM_PAIR_SECONDS = 0.150
 _TEMPERATURE_MATCH_SECONDS = 0.55
+_TORQUE_MATCH_SECONDS = 0.5
+_KW_PER_MECHANICAL_HP = 0.7456998715822702
 _ACCELERATION_HALF_WINDOW_SECONDS = 1.5
 _ACCELERATION_WINDOW_TOLERANCE_SECONDS = 0.55
 _MAX_RATIO_SAMPLE_GAP_SECONDS = 2.5
@@ -35,6 +37,21 @@ _WARMING_CHANNELS = {
     ),
 }
 ADDITIONAL_METRICS = {
+    "derived_crank_torque_nm": {
+        "label": "ECU-estimated crank torque", "unit": "N·m",
+        "description": "Reference torque × (indicated % − friction %) / 100 using nearby ECM replies.",
+        "interpretation": "Positive torque drives the crankshaft. Negative torque indicates net drag. "
+                          "The Civic's varying reference scale still needs independent validation.",
+    },
+    **{
+        f"derived_crank_power_{key}": {
+            "label": label, "unit": unit,
+            "description": "Estimated net crank torque multiplied by engine angular speed.",
+            "interpretation": "Compare with RPM at the same road speed. Higher RPM can sustain similar power "
+                              "with less torque. Absolute output depends on the ECU's reference scale.",
+        }
+        for key, unit, label in (("kw", "kW", "ECU-estimated crank power"), ("hp", "hp", "ECU-estimated crank horsepower"))
+    },
     "derived_converter_slip_pct": {
         "label": "Torque converter slip estimate",
         "unit": "%",
@@ -113,6 +130,7 @@ def derive_series(series: dict[str, Series]) -> dict[str, Series]:
     coolant1 = series.get("ecm_coolant_sensor_1_c", [])
     coolant2 = _exact_samples(series.get("ecm_coolant_sensor_2_c", []))
     results = {
+        **_crank_output(series),
         "derived_pulley_ratio": ratios,
         "derived_torque_converter_slip_rpm": slip,
         "derived_drive_minus_turbine_rpm": pulley_difference,
@@ -146,6 +164,29 @@ def derive_series(series: dict[str, Series]) -> dict[str, Series]:
         },
     }
     return {key: points for key, points in results.items() if points}
+
+
+def _crank_output(series: dict[str, Series]) -> dict[str, Series]:
+    indicated = series.get("ecm_indicated_torque_pct", [])
+    friction = series.get("ecm_friction_torque_pct", [])
+    rpm = series.get("ecm_engine_speed_rpm", [])
+    torque: Series = []
+    power: Series = []
+    for time, reference in series.get("ecm_reference_torque_nm", []):
+        actual = nearby(indicated, time, _TORQUE_MATCH_SECONDS)
+        losses = nearby(friction, time, _TORQUE_MATCH_SECONDS)
+        if reference <= 0 or actual is None or losses is None:
+            continue
+        net = reference * (actual - losses) / 100
+        torque.append([time, net])
+        speed = nearby(rpm, time, _TORQUE_MATCH_SECONDS)
+        if speed is not None and speed >= 0:
+            power.append([time, net * speed * tau / 60_000])
+    return {
+        "derived_crank_torque_nm": torque,
+        "derived_crank_power_kw": power,
+        "derived_crank_power_hp": [[time, kw / _KW_PER_MECHANICAL_HP] for time, kw in power],
+    }
 
 
 def _exact_samples(points: Series) -> dict[float, float]:

@@ -7,16 +7,24 @@
     { id: "ecm_engine_speed_rpm", title: "Engine speed", summary: "Peak" },
     { id: "ecm_coolant_sensor_1_c", title: "Coolant sensor 1", summary: "First reading" },
     { id: "derived_pulley_ratio", title: "Pulley ratio estimate", summary: "Range" },
+    { id: "derived_crank_torque_nm", title: "ECU-estimated crank torque", summary: "Range" },
+    { id: "derived_crank_power_hp", title: "ECU-estimated crank horsepower", summary: "Range" },
   ];
   const metricGroups = ["Derived", "Shifter verification", "Recorded signals", "Capture quality"];
   const operatingMetrics = [
     ["derived_pulley_ratio", "Pulley ratio estimate", "Think of pedaling a bike beside someone riding at the same speed. The higher dot is like having to pedal more times for each turn of the wheel. Here we estimate that from two spinning parts inside the transmission."],
     ["ecm_engine_speed_rpm", "Engine speed", "Pick a speed you held on both trips. The higher dot means the engine was usually spinning faster on that drive, even though the car was traveling at about the same speed."],
     ["ecm_engine_fuel_rate_g_s", "Engine fuel rate", "A higher dot means the engine was using gas faster at that road speed. That can happen going uphill even if the speedometer barely moves."],
+    ["derived_crank_torque_nm", "ECU-estimated crank torque", "At this road speed, a higher dot means the ECU estimates more turning effort at the crankshaft."],
+    ["derived_crank_power_kw", "ECU-estimated crank power", "At this road speed, compare the estimated mechanical output in kW. Grade and acceleration can change the power demand."],
+    ["derived_crank_power_hp", "ECU-estimated crank horsepower", "Compare estimated crankshaft output in mechanical horsepower across the same road-speed bands."],
     ["derived_air_mass_per_cylinder_mg", "Air mass per intake event", "Each time a cylinder fills, it takes in a gulp of air. At the same road speed, the higher dot means the average gulp contained more air on that drive."],
   ];
   const distanceId = "derived_distance_km";
   const metricInputs = {
+    derived_crank_torque_nm: ["ecm_indicated_torque_pct", "ecm_friction_torque_pct", "ecm_reference_torque_nm"],
+    derived_crank_power_kw: ["derived_crank_torque_nm", "ecm_engine_speed_rpm"],
+    derived_crank_power_hp: ["derived_crank_power_kw"],
     derived_pulley_ratio: ["candidate_drive_pulley_rpm", "candidate_driven_pulley_rpm"],
     derived_torque_converter_slip_rpm: ["honda_engine_speed_rpm", "candidate_torque_converter_turbine_rpm"],
     derived_drive_minus_turbine_rpm: ["candidate_drive_pulley_rpm", "candidate_torque_converter_turbine_rpm"],

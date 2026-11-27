@@ -1,0 +1,5 @@
+# Verification
+
+- [x] Tested 11-bit and 29-bit replies, signed percentages, a two-byte reference, the 0.5 s limit, nearest-value ties, absent RPM, negative torque, zero output, and mechanical horsepower. The standard recorder now groups advertised torque channels with RPM and speed. A serial replay produced a plotted power sample from that polling order.
+- [x] Rebuilt four saved drive views with their original input order, labels, and notes, and refreshed both health exports. The four-commute view has 2,306 torque and 2,304 power estimates. Its 118 km/h examples give 105.45 N·m and 22.52 kW on November 25 outbound, and 63.24 N·m and 23.55 kW on November 24 return. All 311 windows in the 3D analysis had six to eight paired samples.
+- [x] Checked the signal selector, torque overlay, speed-band table, 3D projection and trip overview in Chromium. A running local server returned torque, kW and hp for all four original recordings. Passed 100 unit tests, five browser tests, Ruff and the wheel build.

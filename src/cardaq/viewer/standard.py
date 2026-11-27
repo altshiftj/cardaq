@@ -87,6 +87,21 @@ _CHANNELS = {
         "level marks a lift, even when the released pedal reads above zero.",
         scale=_PERCENT_SCALE,
     ),
+    "0162": _Channel(
+        "indicated_torque_pct", "Indicated engine torque", "%", 1,
+        "ECU-estimated torque developed in the cylinders, as a percentage of reference torque.",
+        "Compare with the friction percentage to see how much torque remains at the crankshaft.", bias=-125,
+    ),
+    "0163": _Channel(
+        "reference_torque_nm", "Engine reference torque", "N·m", 2,
+        "The ECU's torque scale for the indicated and friction percentages.",
+        "Inspect this value at different engine speeds. The reference varies in the Civic captures.", width=2,
+    ),
+    "018E": _Channel(
+        "friction_torque_pct", "Engine friction torque", "%", 1,
+        "ECU-estimated engine friction expressed as a percentage of reference torque.",
+        "Compare the share consumed by friction at warm idle and under load.", bias=-125,
+    ),
     "0166": _Channel(
         "mass_airflow_g_s", "Mass airflow sensor A", "g/s", 5,
         "Grams of intake air passing mass airflow sensor A each second.",

@@ -10,7 +10,7 @@ The next signal work supports three questions. Does preheating change early fuel
 - Compare median and middle-half values across speed bands for pulley ratio, RPM, fuel rate, and air per cylinder. Filter by load and inspect the exact band values.
 - Open inferred trip events in the timeline. Compare first-run warm-up milestones in minutes and miles and time spent in each road-speed band. [Trip notebook](changes/0007-trip-notebook/plan.md)
 
-All 24 derived charts now have plain-English guides and links to related traces. An inspector that shows the exact input samples behind a selected point is still open. [Chart guide](RECORDINGS.md#compare-recordings)
+The derived charts have plain-English guides and links to related traces. An inspector that shows the exact input samples behind a selected point is still open. [Chart guide](RECORDINGS.md#compare-recordings)
 
 ## Trip and driving dynamics
 
@@ -39,7 +39,7 @@ All 24 derived charts now have plain-English guides and links to related traces.
 | Fuel budget and overrun | Integrate ECU-reported fuel mass. Compare idle, launch, cruise, and lift-off budgets. Use released pedal, a running engine, and sustained reported zero fuel to label candidate fuel cut. |
 | Air charge and demand | Derive air mass per cylinder intake event from MAF and RPM, and manifold vacuum from barometric and manifold pressure. Compare pedal, throttle, engine load, and ratio in steady windows. |
 | Mixture behavior | Map fuel trims and purge by load and temperature. Check closed-loop status and equivalence-ratio conventions before comparing commanded and observed mixture. |
-| Crank torque, power, and efficiency | Validate reference torque first. The captured PID 63 varied. Compare indicated and friction torque and use RPM for a provisional crank-power estimate after validation. |
+| Crank torque, power, and efficiency | The viewer estimates signed crank torque from indicated, friction, and reference torque and uses RPM to display power in kW or hp. Verify the Civic's changing PID 63 scale against an independent reference before using the absolute values for efficiency. |
 | Exhaust mass balance | Test whether exhaust flow agrees with airflow plus ECU-reported fuel during steady operation. Compare units and determine how independently the ECU estimates each channel. |
 
 ## Thermal behavior and long-term trends

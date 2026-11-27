@@ -5,6 +5,24 @@ from cardaq.viewer.derived import derive_series
 
 
 class DerivedSeriesTests(unittest.TestCase):
+    def test_crank_output_requires_fresh_inputs_and_preserves_drag_and_zero(self):
+        results = derive_series({
+            "ecm_reference_torque_nm": [[1, 185], [3, 200], [5, 190], [7, 0], [9, 180], [11, 204], [13, 200]],
+            "ecm_indicated_torque_pct": [[0.5, 68], [1.5, 69], [3, 4], [5.51, 55], [7, 10], [9, 12],
+                                          [11, 44], [13, 5]],
+            "ecm_friction_torque_pct": [[1.5, 11], [3, 12], [5, 10], [7, 10], [9, 12], [11, 13], [13.51, 5]],
+            "ecm_engine_speed_rpm": [[1.5, 2039], [3, 2000], [7, 0], [9, 0], [11.51, 3556]],
+        })
+        self.assertEqual(results["derived_crank_torque_nm"], [[1, 105.45], [3, -16], [9, 0], [11, 63.24]])
+        kw = dict(results["derived_crank_power_kw"])
+        hp = dict(results["derived_crank_power_hp"])
+        self.assertEqual(set(kw), {1, 3, 9})
+        self.assertEqual(set(hp), set(kw))
+        self.assertAlmostEqual(kw[1], 22.51606, places=4)
+        self.assertAlmostEqual(hp[1], 30.19454, places=3)
+        self.assertLess(hp[3], 0)
+        self.assertEqual(hp[9], 0)
+
     def test_pulley_ratio_requires_matching_moving_honda_observations(self):
         results = derive_series({
             "candidate_drive_pulley_rpm": [[1, 600], [2, 0], [3, 800], [4, 500], [5, 500], [6, 500]],

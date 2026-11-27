@@ -168,14 +168,19 @@ SOFTWARE.
       return node;
     }
     function overview(selected) {
-      table("overview",["Recording","Engine warning lamp","ECM confirmed DTCs","Trip measurements","Notes"],selected.map(trip => {
+      const showCrank = selected.some(trip => trip.highwayCrankOutput.samples > 0);
+      const crankHeading = showCrank ? ["ECU-estimated crank output at 110–119 km/h"] : [];
+      table("overview",["Recording","Engine warning lamp","ECM confirmed DTCs",...crankHeading,"Trip measurements","Notes"],selected.map(trip => {
         const mil = trip.mil;
         const eligible = trip.features.filter(f => Number.isFinite(f.value));
         const flagged = eligible.filter(f => ["watch","repeat"].includes(f.baseline.status));
         const shifts = eligible.filter(f => f.drift?.status === "shift");
         const screened = eligible.filter(f => ["within_reference","watch","repeat"].includes(f.baseline.status));
+        const {samples, medianTorqueNm, medianPowerKw} = trip.highwayCrankOutput;
+        const crankCells = showCrank ? [cell(samples ? medianTorqueNm.toFixed(1)+" N·m · "+medianPowerKw.toFixed(1)+" kW" : "No readings",
+          "Medians · "+samples+" paired samples")] : [];
         return [tripCell(trip),cell(mil.everOn === null ? "No readings" : mil.everOn ? "On during capture" : "Off in observed polls",mil.polls+" status polls"),
-          cell(pretty(mil.maxCount),"peak reported"),cell(eligible.length+" eligible of "+trip.features.length,
+          cell(pretty(mil.maxCount),"peak reported"),...crankCells,cell(eligible.length+" eligible of "+trip.features.length,
           screened.length+" screened · "+flagged.length+" flagged · "+shifts.length+" drift shifts"),cell(trip.note || "—")];
       }));
       table("misfires",["Recording","Cylinder 1","Cylinder 2","Cylinder 3","Cylinder 4"],selected.map(trip =>

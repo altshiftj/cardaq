@@ -6,9 +6,11 @@ from datetime import timedelta, timezone
 from importlib.resources import files
 from itertools import pairwise
 from pathlib import Path
+from statistics import median
 
 from ..viewer import read_capture_samples, write_report_text
 from ..viewer.derived import derive_series
+from ..viewer.series import Series, nearby
 from .baseline import MAX_HISTORY, MIN_HISTORY, apply_baselines
 from .cvt import cvt_features
 from .drift import apply_drift
@@ -22,6 +24,22 @@ def _text(entry: dict, key: str, default: str | None = None) -> str:
     if not isinstance(value, str) or (key != "note" and not value.strip()):
         raise ValueError(f"Expected nonempty text for {key!r} in the health manifest.")
     return value.strip()
+
+
+def _highway_crank_output(series: dict[str, Series]) -> dict:
+    torque = dict(series.get("derived_crank_torque_nm", []))
+    speed = series.get("ecm_vehicle_speed_kph", [])
+    torques, powers = [], []
+    for time, kw in series.get("derived_crank_power_kw", []):
+        road_speed = nearby(speed, time, 0.75)
+        if road_speed is not None and 110 <= road_speed < 120:
+            torques.append(torque[time])
+            powers.append(kw)
+    return {
+        "samples": len(powers),
+        "medianTorqueNm": median(torques) if torques else None,
+        "medianPowerKw": median(powers) if powers else None,
+    }
 
 
 def write_health(manifest: Path, output: Path) -> None:
@@ -63,6 +81,7 @@ def write_health(manifest: Path, output: Path) -> None:
             "date": start.astimezone(samples.timestamp.tzinfo).isoformat(timespec="milliseconds"),
             "label": label, "group": group, "note": note,
             "features": engine_features(series) + cvt_features(series),
+            "highwayCrankOutput": _highway_crank_output(series),
             "cylinders": cylinders, "mil": mil,
         })
 

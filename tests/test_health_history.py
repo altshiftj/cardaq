@@ -42,12 +42,32 @@ class HealthReportTests(unittest.TestCase):
             [(1, None), (2, None), (3, None), (4, None)],
         )
         self.assertEqual(trip["mil"], {"polls": 0, "everOn": None, "maxCount": None})
+        self.assertEqual(trip["highwayCrankOutput"], {"samples": 0, "medianTorqueNm": None, "medianPowerKw": None})
         page = self.root / "report.html"
         write_health(self.manifest, page)
         html = page.read_text(encoding="utf-8")
         self.assertNotIn("</script> morning", html)
         data = re.search(r'<script\b[^>]*id="health-data"[^>]*>(.*?)</script>', html, re.DOTALL)
         self.assertEqual(json.loads(data[1]), report)
+
+    def test_highway_output_uses_only_paired_samples_in_the_speed_band(self):
+        rows = ["timestamp,elapsed_s,event,request,reply,ecm_engine_speed_rpm,ecm_vehicle_speed_kph"]
+        for i, speed in enumerate((109, 110, 119, 120, 116)):
+            t = i * 3
+            rpm = 2000 if i < 4 else ""
+            rows.extend([
+                f"2026-11-24T12:00:00-05:00,{t},reply,,,{rpm},{speed}",
+                f",{t+.1},reply,0162,7E8 03 41 62 B9,,",
+                f",{t+.2},reply,0163,7E8 04 41 63 00 C8,,",
+                f",{t+.3},reply,018E,7E8 03 41 8E 87,,",
+            ])
+        self.capture.write_text("\n".join(rows), encoding="utf-8")
+        output = self.root / "report.json"
+        write_health(self.manifest, output)
+        summary = json.loads(output.read_text(encoding="utf-8"))["trips"][0]["highwayCrankOutput"]
+        self.assertEqual(summary["samples"], 2)
+        self.assertEqual(summary["medianTorqueNm"], 100)
+        self.assertAlmostEqual(summary["medianPowerKw"], 20.94395, places=4)
 
     def test_raw_diagnostic_replies_preserve_observed_counts_and_missing_polls(self):
         with self.capture.open("a", encoding="utf-8") as capture:

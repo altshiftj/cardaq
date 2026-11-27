@@ -6,6 +6,27 @@ def _lesson(plain: str, source: str, reading: str, caution: str) -> dict[str, st
 
 
 DERIVED_LESSONS = {
+    "derived_crank_torque_nm": _lesson(
+        "How much turning effort does the engine deliver at the crankshaft after its own friction?",
+        "At each positive PID 63 reference, subtract friction (PID 8E) from indicated torque (PID 62). "
+        "Divide by 100 and multiply by that reference. Both percentage readings must be within 0.5 s.",
+        "A 185 N·m reference, 68% indicated torque and 11% friction give 105.45 N·m. "
+        "Negative values can occur when friction exceeds indicated torque on overrun.",
+        "The estimate uses the engine computer's model. The Civic's changing reference still needs "
+        "independent validation. Rapid throttle changes can occur between polls.",
+    ),
+    **{
+        key: _lesson(
+            "How quickly is the engine delivering mechanical work at the crankshaft?",
+            "Multiply estimated crank torque in N·m by the nearest ECM RPM within 0.5 s of the reference "
+            "reply and by 2π / 60,000 for kW. One mechanical horsepower is about 0.7457 kW.",
+            "At 2,039 rpm, 105.45 N·m gives 22.5 kW, about 30 hp. Overlay engine speed or crank torque "
+            "to see how the engine maintains power as its speed changes.",
+            "This estimate precedes drivetrain losses. Negative power indicates net drag. Absolute values "
+            "depend on the ECU's torque model and the timing of separate polls.",
+        )
+        for key in ("derived_crank_power_kw", "derived_crank_power_hp")
+    },
     "derived_pulley_ratio": _lesson(
         "In an easy bicycle gear, your feet turn more times for each turn of the wheel. Here, "
         "a higher number means more turns on the engine side of the transmission for each turn on the "

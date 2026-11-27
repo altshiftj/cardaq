@@ -250,7 +250,10 @@ class _Capture:
         if not responders:
             raise AdapterError("No standard data PIDs advertised.")
         width = len(inventory.ecus[0].address)
-        commands = sorted(responders, key=lambda cmd: (cmd not in (b"010C", b"010D"), cmd))
+        # Keep the asynchronous torque and RPM inputs close enough for crank-output estimates.
+        preferred = (b"010C", b"010D", b"0162", b"0163", b"018E")
+        commands = [cmd for cmd in preferred if cmd in responders]
+        commands.extend(sorted(responders.keys() - set(commands)))
         ready = False
         while self.stop_reason() is None:
             before = self.replies

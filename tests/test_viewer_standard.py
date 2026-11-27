@@ -6,6 +6,9 @@ from cardaq.viewer.standard import STANDARD_CHANNELS, standard_observations
 class StandardObservationTests(unittest.TestCase):
     def test_decodes_scaled_values_from_the_ecm(self) -> None:
         cases = (
+            ("0162", "7E9 03 41 62 AA | 7E8 03 41 62 79", "indicated_torque_pct", -4),
+            ("0163", "18 DA F1 10 04 41 63 01 08", "reference_torque_nm", 264),
+            ("018E", "18 DA F1 10 03 41 8E 88", "friction_torque_pct", 11),
             ("01 9d", "18 DA F1 10 06 41 9D 00 32 00 25", "engine_fuel_rate_g_s", 1),
             ("019D", "18 DA F1 10 06 41 9D 00 00 00 00", "engine_fuel_rate_g_s", 0),
             ("0104", "18 DA F1 10 03 41 04 33", "calculated_load_pct", 20),
@@ -35,6 +38,8 @@ class StandardObservationTests(unittest.TestCase):
         self.assertEqual(standard_observations("0149", reply), {"ecm_accelerator_pedal_pct": 0})
         self.assertEqual(standard_observations("0166", "18 DA F1 10 07 41 66 02 01 00 00 00"), {})
         self.assertEqual(standard_observations("0111", "18 DA F1 1E 03 41 11 FF"), {})
+        self.assertEqual(standard_observations("0163", "7E8 03 41 63 B9"), {})
+        self.assertEqual(standard_observations("018E", "7E8 03 41 62 88"), {})
         self.assertEqual(standard_observations("22 23 22", reply), {})
 
     def test_reassembles_both_intake_temperature_frames(self) -> None:
