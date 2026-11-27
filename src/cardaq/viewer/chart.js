@@ -131,10 +131,11 @@
       }
     }
 
-    render({ series, unit = "", style, formatValue = pointFormatter.format, range, xAxis }) {
+    render({ series, unit = "", style, formatValue = pointFormatter.format, range, xAxis, overlayUnit }) {
       const [start, end] = range;
       this.range = [start, end > start ? end : start + 1];
       this.unit = unit;
+      this.overlayUnit = overlayUnit;
       this.style = style;
       this.formatValue = formatValue;
       this.xAxis = xAxis;
@@ -142,6 +143,9 @@
         const { points } = entry;
         return {
           ...entry,
+          unit: entry.unit ?? unit,
+          formatValue: entry.formatValue ?? formatValue,
+          style: entry.style ?? style,
           dashed: entry.dashed ?? index % 2 === 1,
           start: lowerBound(points, this.range[0]),
           end: lowerBound(points, this.range[1], true),
@@ -258,8 +262,8 @@
         this.canvas.setAttribute("aria-valuetext", "Use the arrow keys to inspect readings");
         return;
       }
-      const description = samples.map(({ label, sample }) => sample
-        ? `${label}, ${pointText(sample, this.unit, this.formatValue)} at ${this.cursorText(sample[0])}`
+      const description = samples.map(({ label, sample, unit, formatValue }) => sample
+        ? `${label}, ${pointText(sample, unit, formatValue)} at ${this.cursorText(sample[0])}`
         : `${label}, no nearby sample`);
       this.canvas.setAttribute("aria-valuetext", [this.cursorText(this.cursor), ...description].join(". "));
     }
@@ -276,24 +280,38 @@
       const context = this.background.getContext("2d");
       context.setTransform(this.background.width / width, 0, 0, this.background.height / height, 0, 0);
       context.font = `12px ${font}`;
-      const axis = yAxis(this.series, Math.max(2, Math.floor((height - 63) / 42)));
-      const yTicks = [];
-      for (let index = 0; index <= Math.round((axis.maximum - axis.minimum) / axis.step); index += 1) {
-        const value = axis.minimum + index * axis.step;
-        yTicks.push([value, formatNumber(value, axis.step)]);
-      }
-      const labelWidth = Math.max(...yTicks.map(([, label]) => context.measureText(label).width));
-      const left = Math.max(32, Math.ceil(labelWidth) + 11);
-      const right = width - 13;
       const top = 23;
       const bottom = height - (this.interactive ? 45 : 26);
+      function scale(entries) {
+        const axis = yAxis(entries, Math.max(2, Math.floor((height - 63) / 42)));
+        const ticks = [];
+        for (let i = 0; i <= Math.round((axis.maximum - axis.minimum) / axis.step); i++) {
+          const value = axis.minimum + i * axis.step;
+          ticks.push([value, formatNumber(value, axis.step)]);
+        }
+        const margin = Math.max(32, ...ticks.map(([, label]) => Math.ceil(context.measureText(label).width) + 11));
+        const y = value => bottom - (value - axis.minimum) / (axis.maximum - axis.minimum) * (bottom - top);
+        return { ticks, margin, y, hasSamples: axis.hasSamples };
+      }
+      const separate = this.overlayUnit !== undefined && this.overlayUnit !== this.unit;
+      const primary = scale(separate ? this.series.filter(entry => !entry.overlay) : this.series);
+      const secondary = separate ? scale(this.series.filter(entry => entry.overlay)) : primary;
+      const left = primary.margin;
+      const right = width - (this.overlayUnit !== undefined ? secondary.margin : 13);
       const [start, end] = this.range;
       const x = (time) => left + (time - start) / (end - start) * (right - left);
-      const y = (value) => bottom - (value - axis.minimum) / (axis.maximum - axis.minimum) * (bottom - top);
-      this.plot = { left, right, top, bottom, x, y };
+      this.plot = { left, right, top, bottom, x, y: primary.y, overlayY: secondary.y };
 
-      if (axis.hasSamples) {
-        this.drawAxes(context, yTicks);
+      if (primary.hasSamples || secondary.hasSamples) {
+        this.drawAxes(context, primary.hasSamples ? primary.ticks : []);
+        if (this.overlayUnit !== undefined) {
+          context.textAlign = "left";
+          if (secondary.hasSamples) {
+            for (const [value, label] of secondary.ticks) context.fillText(label, right + 6, secondary.y(value));
+          }
+          context.textAlign = "right";
+          context.fillText(this.overlayUnit, right, 9);
+        }
         context.save();
         context.beginPath();
         context.rect(left, top, right - left, bottom - top);
@@ -369,7 +387,8 @@
       }
       const { points, start, end } = entry;
       if (start === end) return;
-      const { x, y } = this.plot;
+      const { x } = this.plot;
+      const y = entry.overlay ? this.plot.overlayY : this.plot.y;
       const first = start > 0 && start < points.length && !gapBefore(entry, start)
         ? start - 1 : start;
       const stop = end > 0 && end < points.length && !gapBefore(entry, end)
@@ -388,7 +407,7 @@
           context.moveTo(x(time), y(value));
           segmentLength = 1;
         } else {
-          if (this.style === "step" && previousValue !== value) context.lineTo(x(time), y(previousValue));
+          if (entry.style === "step" && previousValue !== value) context.lineTo(x(time), y(previousValue));
           context.lineTo(x(time), y(value));
           segmentLength += 1;
         }
@@ -458,10 +477,10 @@
       context.lineTo(column, bottom);
       context.stroke();
       context.setLineDash([]);
-      for (const { color, markOffset, sample } of samples) {
+      for (const { color, markOffset, sample, overlay } of samples) {
         if (!sample) continue;
         context.beginPath();
-        context.arc(x(sample[0]) + markOffset, y(sample[1]), 4, 0, 2 * Math.PI);
+        context.arc(x(sample[0]) + markOffset, (overlay ? this.plot.overlayY : y)(sample[1]), 4, 0, 2 * Math.PI);
         context.fillStyle = color;
         context.fill();
         context.strokeStyle = colors.panel;
@@ -500,7 +519,7 @@
         context.lineTo(boxLeft + 26, row);
         context.stroke();
         context.setLineDash([]);
-        const value = entry.sample ? pointText(entry.sample, this.unit, this.formatValue) : "No nearby sample";
+        const value = entry.sample ? pointText(entry.sample, entry.unit, entry.formatValue) : "No nearby sample";
         context.font = `600 12px ${font}`;
         context.fillStyle = entry.sample ? colors.text : colors.label;
         context.textAlign = "right";

@@ -40,6 +40,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     view_parser.add_argument("--label", action="append", help="drive name (repeat once per CSV)")
     view_parser.add_argument("--signal-notes", type=Path, help="include per-signal notes for these recordings from JSON")
+    serve_parser = commands.add_parser("serve", help="watch a recordings folder in a local drive viewer")
+    serve_parser.add_argument("folder", nargs="?", type=Path, default=Path("captures/recordings"))
+    serve_parser.add_argument("--port", type=int, default=8765, help="local HTTP port (default 8765)")
     health_parser = commands.add_parser("health", help="track comparable engine and CVT observations across trips")
     health_parser.add_argument("manifest", type=Path, help="TOML file listing one vehicle's independent trips")
     health_parser.add_argument(
@@ -63,6 +66,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print("No serial ports found.")
             for device, description in ports:
                 print(f"{device}\t{description}" if description and description != "n/a" else device)
+        elif args.command == "serve":
+            from .viewer.live import serve
+
+            serve(args.folder, args.port)
         elif args.command == "view":
             if args.output is None:
                 output = write_managed_viewer(args.captures, labels=args.label, signal_notes=args.signal_notes)

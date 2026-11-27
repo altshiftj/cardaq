@@ -411,17 +411,25 @@ def _viewer_page(
     paths: Sequence[Path], names: Sequence[str], signal_notes: Path | None, *, fingerprints: list[str] | None = None,
 ) -> str:
     drives = [_read_capture(path, name) for path, name in zip(paths, names, strict=True)]
+    data = _viewer_data(drives)
+    if signal_notes is not None:
+        if fingerprints is None:
+            fingerprints = [_file_sha256(path) for path in paths]
+        data["comparisonNotes"] = _comparison_notes(signal_notes, fingerprints, data["metrics"])
+    return _render_page(data)
+
+
+def _viewer_data(drives: list[dict]) -> dict:
     used_columns = {column for drive in drives for column in drive["series"]}
     metrics = {
         column: _metric(column)
         for column in (*MEASUREMENT_COLUMNS, *_VIEWER_METRICS)
         if column in used_columns
     }
-    data = {"drives": drives, "metrics": metrics}
-    if signal_notes is not None:
-        if fingerprints is None:
-            fingerprints = [_file_sha256(path) for path in paths]
-        data["comparisonNotes"] = _comparison_notes(signal_notes, fingerprints, metrics)
+    return {"drives": drives, "metrics": metrics}
+
+
+def _render_page(data: dict) -> str:
     payload = json.dumps(data, separators=(",", ":"))
     resources = files(__package__)
     replacements = {

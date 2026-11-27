@@ -64,6 +64,7 @@ __VIEWER_RECORDINGS__
       </div>
     </div>
     <p id="viewer-error" class="viewer-error" role="alert" hidden></p>
+    <p id="library-status" class="chart-instructions" role="status" hidden></p>
     <noscript><p class="viewer-error">Enable JavaScript to view the capture graphs.</p></noscript>
 
     <div class="workspace">
@@ -94,9 +95,28 @@ __VIEWER_RECORDINGS__
           <summary class="panel-summary"><h2 id="metric-title">Signal explorer</h2></summary>
           <a href="#lesson-title" class="guide-link">Chart guide ↓</a>
           <div class="chart-controls" id="timeline-controls">
-            <label for="metric">Metric
-              <select id="metric" aria-describedby="lesson-plain"></select>
-            </label>
+            <div class="signal-picker">
+              <label id="metric-label" for="metric-search">Metric</label>
+              <input id="metric-search" type="text" role="combobox" aria-autocomplete="list"
+                aria-controls="metric-options" aria-expanded="false" aria-describedby="lesson-plain"
+                placeholder="Search metrics" autocomplete="off" spellcheck="false">
+              <div class="signal-menu" hidden>
+                <div id="metric-options" role="listbox" aria-labelledby="metric-label"></div>
+                <p role="status" hidden>No matching metrics</p>
+              </div>
+              <select id="metric" hidden></select>
+            </div>
+            <div class="signal-picker">
+              <label id="overlay-label" for="overlay-search">Overlay</label>
+              <input id="overlay-search" type="text" role="combobox" aria-autocomplete="list"
+                aria-controls="overlay-options" aria-expanded="false"
+                placeholder="Search overlays" autocomplete="off" spellcheck="false">
+              <div class="signal-menu" hidden>
+                <div id="overlay-options" role="listbox" aria-labelledby="overlay-label"></div>
+                <p role="status" hidden>No matching overlays</p>
+              </div>
+              <select id="overlay" hidden><option value="">None</option></select>
+            </div>
             <label for="window">Time window
               <select id="window">
                 <option value="full">Entire recording</option>

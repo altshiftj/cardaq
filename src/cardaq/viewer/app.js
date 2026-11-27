@@ -257,6 +257,116 @@
     select.value = metrics[defaultMetric] ? defaultMetric : metricOrder[0];
   }
 
+  function enableMetricSearch(select) {
+    const input = byId(`${select.id}-search`);
+    const list = byId(`${select.id}-options`);
+    const menu = list.parentElement;
+    const empty = menu.querySelector('[role="status"]');
+    const rows = [];
+    for (const child of select.children) {
+      const grouped = child instanceof HTMLOptGroupElement;
+      const group = grouped ? element("div") : list;
+      if (grouped) {
+        group.setAttribute("role", "group");
+        group.setAttribute("aria-label", child.label);
+        const heading = element("div", "signal-group-name", child.label);
+        heading.setAttribute("aria-hidden", "true");
+        group.append(heading);
+        list.append(group);
+      }
+      for (const option of grouped ? child.children : [child]) {
+        const row = element("div", "", option.label);
+        row.id = `${list.id}-${option.index}`;
+        row.dataset.value = option.value;
+        row.setAttribute("role", "option");
+        row.setAttribute("aria-selected", "false");
+        group.append(row);
+        rows.push({ option, row, text: option.label.toLowerCase() });
+      }
+    }
+
+    let matches = [];
+    let active;
+    function highlight(row) {
+      active?.setAttribute("aria-selected", "false");
+      active = row;
+      if (row) {
+        row.setAttribute("aria-selected", "true");
+        input.setAttribute("aria-activedescendant", row.id);
+        if (row.offsetTop < menu.scrollTop) menu.scrollTop = row.offsetTop;
+        else if (row.offsetTop + row.offsetHeight > menu.scrollTop + menu.clientHeight) {
+          menu.scrollTop = row.offsetTop + row.offsetHeight - menu.clientHeight;
+        }
+      } else {
+        input.removeAttribute("aria-activedescendant");
+      }
+    }
+
+    function filter() {
+      const query = input.value.trim().toLowerCase();
+      matches = [];
+      for (const { option, row, text } of rows) {
+        row.hidden = option.disabled || !text.includes(query);
+        if (!row.hidden) matches.push(row);
+      }
+      for (const group of list.querySelectorAll('[role="group"]')) {
+        group.hidden = !group.querySelector('[role="option"]:not([hidden])');
+      }
+      empty.hidden = matches.length > 0;
+      menu.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      menu.scrollTop = 0;
+      const current = !query && matches.find(row => row.dataset.value === select.value);
+      highlight(current || matches[0]);
+    }
+
+    function open() {
+      input.value = "";
+      filter();
+    }
+    function close() {
+      menu.hidden = true;
+      highlight(null);
+      input.setAttribute("aria-expanded", "false");
+      input.value = select.selectedOptions[0]?.label ?? "";
+    }
+    function choose(row) {
+      select.value = row.dataset.value;
+      close();
+      input.select();
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    input.addEventListener("focus", () => input.select());
+    input.addEventListener("click", () => { if (menu.hidden) open(); });
+    input.addEventListener("input", filter);
+    input.addEventListener("blur", close);
+    input.addEventListener("keydown", event => {
+      if (event.isComposing) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (menu.hidden) open();
+        else {
+          const index = matches.indexOf(active) + (event.key === "ArrowDown" ? 1 : -1);
+          highlight(matches[Math.max(0, Math.min(index, matches.length - 1))]);
+        }
+      } else if (!menu.hidden && event.key === "Enter" && active) {
+        event.preventDefault();
+        choose(active);
+      } else if (!menu.hidden && event.key === "Escape") {
+        event.preventDefault();
+        close();
+        input.select();
+      }
+    });
+    menu.addEventListener("mousedown", event => event.preventDefault());
+    list.addEventListener("click", event => {
+      const row = event.target.closest('[role="option"]');
+      if (row) choose(row);
+    });
+    return close;
+  }
+
   function nearestValue(points, time, maxAge) {
     let low = 0;
     let high = points.length;
@@ -630,7 +740,37 @@
   }
 
   function init() {
-    const { drives: recordings, metrics: definitions, comparisonNotes = {} } = JSON.parse(byId("capture-data").textContent);
+    const { drives: recordings, metrics: definitions, comparisonNotes = {}, live } = JSON.parse(byId("capture-data").textContent);
+    const saved = live && history.state?.library?.folder === live.folder ? history.state.library : {};
+    let remember = () => ({});
+    if (live) {
+      const status = byId("library-status");
+      const messages = [`Watching ${live.folder} for CSV changes.`];
+      if (!recordings.length) messages.push("Waiting for a readable CarDAQ recording.");
+      if (live.skipped.length) messages.push(`Unreadable recordings: ${live.skipped.join(", ")}.`);
+      status.hidden = false;
+      status.textContent = messages.join(" ");
+      async function checkFolder() {
+        try {
+          const reply = await fetch("/revision", {cache: "no-store"});
+          if (!reply.ok) throw new Error("Folder unavailable");
+          if (await reply.text() !== live.revision) {
+            history.replaceState({library: {folder: live.folder, ...remember()}}, "");
+            location.reload();
+            return;
+          }
+          status.textContent = messages.join(" ");
+        } catch {
+          status.textContent = "Folder viewer disconnected. Retrying in five seconds.";
+        }
+        setTimeout(checkFolder, 5000);
+      }
+      setTimeout(checkFolder, 5000);
+      if (!recordings.length) {
+        document.querySelector(".workspace").hidden = true;
+        return;
+      }
+    }
     const metrics = Object.fromEntries(Object.entries(definitions).map(([id, metric]) => [
       id, metricPresentation(metric),
     ]));
@@ -645,7 +785,7 @@
       label.style.setProperty("--trace-style", drive.dashed ? "dashed" : "solid");
       const checkbox = element("input");
       checkbox.type = "checkbox";
-      checkbox.checked = true;
+      checkbox.checked = !saved.unchecked?.includes(drive.name);
       const name = element("span", "recording-name", drive.name);
       name.id = `recording-name-${index}`;
       checkbox.setAttribute("aria-labelledby", name.id);
@@ -680,6 +820,7 @@
     let drives = recordings;
 
     const metric = byId("metric");
+    const overlay = byId("overlay");
     const timeWindow = byId("window");
     const axis = byId("axis");
     const mainCanvas = byId("main-chart");
@@ -690,13 +831,32 @@
     if (metricOrder.length) scope.push(`${metricOrder.length} signal${metricOrder.length === 1 ? "" : "s"}`);
     byId("report-scope").textContent = scope.join("  /  ");
     addMetricOptions(metric, metrics, metricOrder);
+    addMetricOptions(overlay, metrics, metricOrder);
+    overlay.value = metrics[saved.overlay] ? saved.overlay : "";
+    if (metrics[saved.metric]) metric.value = saved.metric;
+    const syncMetricSearch = enableMetricSearch(metric);
+    const syncOverlaySearch = enableMetricSearch(overlay);
+    if (saved.axis) axis.value = saved.axis;
+    if (saved.window && saved.window !== "event") timeWindow.value = saved.window;
     let selection;
+    remember = () => ({
+      unchecked: recordings.filter((_, index) => !toggles[index].checked).map(drive => drive.name),
+      metric: metric.value, overlay: overlay.value, axis: axis.value, window: timeWindow.value,
+      panels: Array.from(document.querySelectorAll(".workspace details[id]"), panel => [panel.id, panel.open]),
+      event: selection && {name: selection.drive.name, start: selection.event.start, kind: selection.event.kind},
+    });
 
     function render() {
       const selectedMetric = metrics[metric.value];
       const { label, description, unit, style, formatValue } = selectedMetric;
+      for (const option of overlay.options) option.disabled = option.value === metric.value;
+      if (overlay.value === metric.value) overlay.value = "";
+      syncMetricSearch();
+      syncOverlaySearch();
+      const second = metrics[overlay.value];
       let series = lineSeries(drives, metric.value);
-      const fullEnd = seriesEnd(series);
+      let extra = second ? lineSeries(drives, overlay.value) : [];
+      const fullEnd = seriesEnd([...series, ...extra]);
       const activeEvent = timeWindow.value === "event" ? selection : undefined;
       const end = activeEvent || timeWindow.value === "full"
         ? fullEnd : Math.min(fullEnd, Number(timeWindow.value));
@@ -706,6 +866,7 @@
       let xAxis;
       if (axis.value === "distance") {
         series = distanceSeries(drives, metric.value, end);
+        if (second) extra = distanceSeries(drives, overlay.value, end);
         const distanceEnd = Math.max(
           0.001,
           ...drives.map(({ series }) => summarize(series[distanceId] ?? [], end)?.max ?? 0),
@@ -739,7 +900,7 @@
           button.addEventListener("click", () => {
             metric.value = id;
             render();
-            metric.focus();
+            byId("metric-search").focus();
           });
           links.append(button);
         }
@@ -761,11 +922,26 @@
       byId("chart-instructions").textContent = xAxis
         ? "Read left to right by distance traveled. Each color follows one drive. Switch to elapsed time to see stops and gaps. Hover, tap, or use the arrow keys for a reading."
         : "Read left to right as the drive goes on. Each color follows one drive. A gap means we missed readings. Hover, tap, or use the arrow keys for a reading.";
-      chart.render({ series, unit, style, formatValue, range, xAxis });
-      byId("metric-stats").replaceChildren(...series.map((line) => metricStat(line, selectedMetric, range)));
+      if (second) {
+        for (const line of series) {
+          line.dashed = false;
+          line.label = `${label} · ${line.label}`;
+        }
+        for (const line of extra) {
+          Object.assign(line, { overlay: true, dashed: true, style: second.style || "line",
+            unit: second.unit, formatValue: second.formatValue, label: `${second.label} · ${line.label}` });
+        }
+        const key = `Solid, left: ${label}. Dashed, right: ${second.label}. Each color follows one drive.`;
+        byId("chart-instructions").textContent = key + " Hover, tap, or use the arrow keys for both readings.";
+        mainCanvas.setAttribute("aria-label", key);
+      }
+      chart.render({ series: [...series, ...extra], unit, style, formatValue, range, xAxis, overlayUnit: second?.unit });
+      byId("metric-stats").replaceChildren(...series.map(line => metricStat(line, selectedMetric, range)),
+        ...extra.map(line => metricStat(line, second, range)));
     }
 
     metric.addEventListener("change", render);
+    overlay.addEventListener("change", render);
     timeWindow.addEventListener("change", () => {
       if (timeWindow.value === "event") axis.value = "time";
       render();
@@ -818,7 +994,7 @@
         timeWindow.value = "full";
         render();
         byId("signal-explorer").scrollIntoView({ block: "start" });
-        metric.focus({ preventScroll: true });
+        byId("metric-search").focus({ preventScroll: true });
       });
       canvas.setAttribute("aria-label", chartLabel(title, unit));
       const table = fragment.querySelector(".quick-summary");
@@ -888,7 +1064,20 @@
       updateSelection();
       toggles[0].focus();
     });
+    if (saved.window === "event" && saved.event) {
+      const drive = recordings.find(item => item.name === saved.event.name);
+      const event = drive?.events.find(item => item.kind === saved.event.kind && item.start === saved.event.start);
+      if (event) {
+        selection = {drive, event};
+        timeWindow.add(new Option("Selected event", "event"));
+        timeWindow.value = "event";
+      }
+    }
     updateSelection();
+    for (const [id, open] of saved.panels ?? []) {
+      const panel = byId(id);
+      if (panel instanceof HTMLDetailsElement) panel.open = open;
+    }
     revealTarget(location.hash);
   }
 

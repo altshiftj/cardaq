@@ -48,6 +48,68 @@ class OfflineViewerTests(unittest.TestCase):
         page.goto(self.url)
         return page
 
+    def test_speed_and_rpm_overlay(self) -> None:
+        page = self.open_report(390)
+        overlay = page.get_by_role("combobox", name="Overlay")
+        options = page.get_by_role("listbox", name="Overlay")
+        overlay.click()
+        overlay.fill("PeEd")
+        expect(options.get_by_role("option", name=re.compile("Vehicle speed"))).to_have_count(0)
+        options.get_by_role("option", name=re.compile("Engine speed")).click()
+        chart = page.locator("#main-chart")
+        chart.press("Home")
+        expect(chart).to_have_attribute("aria-valuetext", re.compile(r"km/h.*rpm"))
+        expect(page.locator("#metric-stats .metric-stat")).to_have_count(4)
+        page.select_option("#axis", "distance")
+        expect(page.locator("#chart-instructions")).to_contain_text("Dashed, right")
+        overlay.click()
+        options.get_by_role("option", name="None", exact=True).click()
+        expect(page.locator("#metric-stats .metric-stat")).to_have_count(2)
+
+    def test_metric_substring_search_and_keyboard_selection(self) -> None:
+        page = self.open_report(1280)
+        metric = page.get_by_role("combobox", name="Metric", exact=True)
+        options = page.get_by_role("listbox", name="Metric").get_by_role("option")
+        title = page.locator("#metric-title")
+        metric.click()
+        labels = options.all_text_contents()
+        speed_labels = [label for label in labels if "peed" in label.lower()]
+        self.assertGreaterEqual(len(speed_labels), 2)
+        metric.fill("pEeD")
+        expect(options).to_have_text(speed_labels)
+        metric.press("ArrowDown")
+        metric.press("Enter")
+        expect(metric).to_have_value(speed_labels[1])
+        expect(title).to_have_text(speed_labels[1].rsplit(" (", 1)[0])
+
+        metric.click()
+        metric.fill("no such signal")
+        expect(page.get_by_text("No matching metrics")).to_be_visible()
+        expect(options).to_have_count(0)
+        metric.press("Escape")
+        expect(metric).to_have_value(speed_labels[1])
+        expect(metric).to_have_attribute("aria-expanded", "false")
+
+        metric.press_sequentially("RPm")
+        expect(options).to_have_text([label for label in labels if "rpm" in label.lower()])
+        metric.fill("")
+        expect(options).to_have_text(labels)
+        metric.press("Tab")
+        expect(metric).to_have_value(speed_labels[1])
+
+    def test_quick_look_updates_search_fields_and_clears_duplicate_overlay(self) -> None:
+        page = self.open_report(1280)
+        overlay = page.get_by_role("combobox", name="Overlay")
+        overlay.click()
+        overlay.fill("rpm")
+        overlay.press("Enter")
+        expect(overlay).to_have_value(re.compile("Engine speed"))
+        page.get_by_role("button", name="Open engine speed in the signal explorer").click()
+        metric = page.get_by_role("combobox", name="Metric", exact=True)
+        expect(metric).to_be_focused()
+        expect(metric).to_have_value(re.compile("Engine speed"))
+        expect(overlay).to_have_value("None")
+
     def test_event_focus_follows_the_selected_recordings(self) -> None:
         page = self.open_report(1280)
         cold = page.get_by_role("checkbox", name="Cold start")

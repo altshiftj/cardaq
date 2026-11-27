@@ -308,12 +308,13 @@ h2 {
   font-weight: 600;
 }
 
-#timeline-controls { grid-template-columns: minmax(0, 2fr) minmax(8rem, 1fr); margin-bottom: 1rem; }
+#library-status { margin-block: 0 1rem; overflow-wrap: anywhere; }
+#timeline-controls { grid-template-columns: repeat(2, minmax(0, 2fr)) minmax(8rem, 1fr); margin-bottom: 1rem; }
 #timeline-controls.has-distance-axis {
-  grid-template-columns: minmax(0, 2.3fr) minmax(8rem, 1fr) minmax(8rem, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 2fr)) repeat(2, minmax(8rem, 1fr));
 }
 
-.chart-controls select {
+.chart-controls select, .signal-picker input {
   appearance: none;
   display: block;
   width: 100%;
@@ -333,9 +334,33 @@ h2 {
   cursor: pointer;
   text-overflow: ellipsis;
 }
-.chart-controls select:hover { border-color: var(--muted); }
+.chart-controls select:hover, .signal-picker input:hover { border-color: var(--muted); }
 
-button:focus-visible, select:focus-visible, canvas:focus-visible,
+.signal-picker { position: relative; min-width: 0; }
+.signal-picker label { display: block; }
+.signal-picker input { font: inherit; font-size: .875rem; font-weight: 600; cursor: text; }
+.signal-menu {
+  position: absolute;
+  z-index: 3;
+  inset: calc(100% + .25rem) 0 auto;
+  max-height: min(18rem, 40vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: .25rem;
+  border: 1px solid #40515f;
+  border-radius: 6px;
+  background: var(--surface-deep);
+  box-shadow: 0 .5rem 1.2rem #0006;
+  font-size: .875rem;
+}
+.signal-menu [role="option"], .signal-menu p, .signal-group-name { padding: .4rem .55rem; }
+.signal-group-name, .signal-menu p { color: var(--muted); }
+.signal-group-name { font-size: .75rem; font-weight: 650; }
+.signal-menu [role="option"] { border-radius: 3px; cursor: pointer; overflow-wrap: anywhere; }
+.signal-menu [role="option"]:hover { background: var(--line); }
+.signal-menu [aria-selected="true"] { background: #23463e; color: var(--mint); }
+
+button:focus-visible, select:focus-visible, .signal-picker input:focus-visible, canvas:focus-visible,
 .operating-table summary:focus-visible, .operating-table-scroll:focus-visible {
   outline: 2px solid var(--mint);
   outline-offset: 3px;
@@ -677,7 +702,7 @@ canvas {
   #report-scope { font-size: .75rem; }
   .chart-controls { grid-template-columns: minmax(0, 1.17fr) minmax(0, 1fr); gap: .5rem; }
   #timeline-controls, #timeline-controls.has-distance-axis { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #timeline-controls label:first-child { grid-column: 1 / -1; }
+  #timeline-controls .signal-picker { grid-column: 1 / -1; }
   .main-canvas { padding: .15rem; }
   .metric-stat { grid-template-columns: minmax(0, 1fr); }
   .metric-stat-values { padding-inline-start: 1.17rem; }

@@ -6,6 +6,14 @@ The recorder was developed on a **2020 Honda Civic LX sedan, 2.0 L with CVT**, u
 
 ## Try the viewer
 
+To browse your recording library, run the following from the repository root and open the local address it prints.
+
+```sh
+uv run --locked cardaq serve
+```
+
+The viewer watches `captures/recordings/` and its date subfolders while the command runs. New and changed CSVs appear automatically. In **Signals**, choose **Vehicle speed · ECM** as the metric and **Engine speed · ECM** as the overlay to compare road speed and RPM on the same graph. Press Ctrl+C in the serving terminal to stop.
+
 From the repository root, use uv with Python 3.11 or later. The generator creates two fictional three-minute trips with identical road speeds, different starting coolant temperatures, and different engine RPM. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 ```sh
