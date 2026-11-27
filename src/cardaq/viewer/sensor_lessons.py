@@ -204,6 +204,12 @@ SENSOR_LESSONS.update({
         "This field's identity is provisional. Matching RPM leaves the clutch command unknown. "
         "Small offsets can also arise because the engine and turbine fields arrive at different times.",
     ),
+    "ecm_engine_coolant_c": _lesson(
+        "This is how warm the engine computer says the coolant is.",
+        "The engine controller supplies a single temperature in the standard PID 05 reply.",
+        "Start at the first sample and follow the rise to a stable cruising temperature.",
+        "PID 05 does not identify the probe location. PID 67 can separately identify two coolant sensors.",
+    ),
     "ecm_calculated_load_pct": _lesson(
         "How much effort is the engine using at this moment? The line can climb on a hill even when "
         "the speedometer stays put.",

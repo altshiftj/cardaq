@@ -99,3 +99,16 @@ class SweepTests(unittest.TestCase):
 
         self.assertEqual([(ecu.address, ecu.pids) for ecu in result.ecus], [("7E8", (0x0C,))])
         self.assertEqual(result.samples, ())
+
+    def test_auto_sweep_samples_only_advertised_data_after_protocol_search(self) -> None:
+        self.set_up_serial(
+            *((cmd + b"\r", b"OK\r>") for cmd in (b"ATD", b"ATTP0", b"ATAR", b"ATH1", b"ATCAF1", b"ATCFC1")),
+            (b"0100\r", b"SEARCHING...\r7E8 06 41 00 08 10 00 00\r>"),
+            (b"ATDPN\r", b"A6\r>"),
+            (b"0105\r", b"7E8 03 41 05 63\r>"),
+            (b"010C\r", b"7E8 04 41 0C 00 00\r>"),
+            (b"ATH0\r", b"OK\r>"),
+        )
+        result = sweep(SerialSettings("test-serial"), auto=True, sample=True)
+        self.assertEqual(result.ecus[0].pids, (5, 12))
+        self.assertEqual(result.samples[1].lines, ("7E8 04 41 0C 00 00",))

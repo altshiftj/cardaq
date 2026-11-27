@@ -28,14 +28,35 @@ class SweepResult:
     samples: tuple[PidSample, ...]
 
 
-def sweep(settings: SerialSettings, *, sample: bool = False) -> SweepResult:
+def _can_address_width(connection: Serial, timeout: float) -> int:
+    protocol = request(connection, b"ATDPN", timeout)
+    number = protocol[0].upper().removeprefix(b"A") if len(protocol) == 1 else b""
+    if number not in (b"6", b"7", b"8", b"9"):
+        raise AdapterError("PID discovery requires an active ISO 15765-4 CAN protocol.")
+    return 3 if number in (b"6", b"8") else 8
+
+
+def discover_standard(connection: Serial, timeout: float, *, sample: bool = False) -> SweepResult:
+    """Start a fresh functional OBD session and leave addressed replies enabled for polling."""
+    for command in (b"ATD", b"ATTP0", b"ATAR", b"ATH1", b"ATCAF1", b"ATCFC1"):
+        if request(connection, command, timeout) != (b"OK",):
+            raise AdapterError(f"Adapter did not acknowledge {command.decode('ascii')}.")
+    # Automatic protocol search may take longer than subsequent data requests.
+    initial = request(connection, b"0100", max(timeout, 15.0))
+    width = _can_address_width(connection, timeout)
+    bitmaps = _addressed_bitmaps(pid_bitmaps(initial, 0, width), 0)
+    return _sweep_addressed(connection, timeout, width, bitmaps, sample)
+
+
+def sweep(settings: SerialSettings, *, sample: bool = False, auto: bool = False) -> SweepResult:
     with open_connection(settings) as connection:
+        if auto:
+            try:
+                return discover_standard(connection, settings.timeout, sample=sample)
+            finally:
+                _set_headers(connection, b"ATH0", settings.timeout)
         initial_reply = request(connection, b"0100", settings.timeout)
-        protocol = request(connection, b"ATDPN", settings.timeout)
-        number = protocol[0].upper().removeprefix(b"A") if len(protocol) == 1 else b""
-        if number not in (b"6", b"7", b"8", b"9"):
-            raise AdapterError("PID sweep requires an active ISO 15765-4 CAN protocol.")
-        address_width = 3 if number in (b"6", b"8") else 8
+        address_width = _can_address_width(connection, settings.timeout)
         initial = pid_bitmaps(initial_reply, 0, address_width)
         if not initial:
             raise AdapterError("The vehicle did not return a Mode 01 PID support bitmap.")

@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass
 
-from ..obd_frames import _compact_hex, _single_frame
+from ..obd_frames import ENGINE_RESPONSE_IDS, _can_frame, _compact_hex, single_frame_payload
 
 
-_ECM = b"18DAF110"
+_ECM_IDS = tuple(address.encode("ascii") for address in ENGINE_RESPONSE_IDS.values())
 _PERCENT_SCALE = 100 / 255
 
 
@@ -25,6 +25,12 @@ class _Channel:
 
 
 _CHANNELS = {
+    "0105": _Channel(
+        "engine_coolant_c", "Engine coolant temperature", "°C", 1,
+        "Coolant temperature reported by the engine computer through PID 05.",
+        "Compare the rise from a cold start with the temperature during steady driving.",
+        bias=-40,
+    ),
     "0104": _Channel(
         "calculated_load_pct", "Calculated engine load", "%", 1,
         "The engine computer's estimate of how much of the load available at the current RPM is in use.",
@@ -126,28 +132,34 @@ STANDARD_CHANNELS["ecm_odometer_km"]["summary"] = "change"
 
 
 def standard_observations(request: str, reply: str) -> dict[str, int | float]:
-    """Decode selected Mode 01 readings from the Civic ECM's saved CAN frames."""
+    """Decode selected Mode 01 readings from a conventional engine responder."""
     command = "".join(request.split()).upper()
     channel = _CHANNELS.get(command)
     if channel is None:
         return {}
 
-    frames = [
+    compact_lines = [
         compact
         for line in reply.split("|")
-        if (compact := _compact_hex(line.encode())) is not None and compact.startswith(_ECM)
+        if (compact := _compact_hex(line.encode())) is not None and compact.startswith(_ECM_IDS)
     ]
+    if not compact_lines:
+        return {}
+    address = next(prefix for prefix in _ECM_IDS if compact_lines[0].startswith(prefix))
+    frames = []
+    for compact in compact_lines:
+        frame = _can_frame(compact, len(address))
+        if frame is None or not compact.startswith(address):
+            continue
+        frames.append(frame[1])
     expected_prefix = bytes.fromhex("41" + command[2:])
     if channel.length > 5:
         payload = _intake_air_payload(frames)
     else:
         payload = next(
             (
-                frame[1]
-                for compact in frames
-                if (frame := _single_frame(compact, len(_ECM))) is not None
-                and len(frame[1]) == channel.length + 2
-                and frame[1].startswith(expected_prefix)
+                data for frame in frames if (data := single_frame_payload(frame)) is not None
+                and len(data) == channel.length + 2 and data.startswith(expected_prefix)
             ),
             None,
         )
@@ -164,19 +176,7 @@ def _intake_air_payload(frames: list[bytes]) -> bytes | None:
     """PID 68 is the only selected response that uses two ISO-TP frames."""
     if len(frames) != 2:
         return None
-    data = []
-    for compact in frames:
-        frame = compact[len(_ECM):]
-        if len(frame) % 2:
-            dlc = int(frame[:1], 16)
-            frame = frame[1:]
-            if dlc * 2 != len(frame):
-                return None
-        if not 8 <= len(frame) <= 16:
-            return None
-        data.append(bytes.fromhex(frame.decode("ascii")))
-
-    first, second = data
-    if len(first) != 8 or first[:2] != b"\x10\x09" or second[0] != 0x21:
+    first, second = frames
+    if len(first) != 8 or first[:2] != b"\x10\x09" or len(second) < 4 or second[0] != 0x21:
         return None
     return first[2:] + second[1:4]

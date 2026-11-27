@@ -4,6 +4,7 @@ import re
 
 
 _HEX = re.compile(rb"[0-9A-F]+")
+ENGINE_RESPONSE_IDS = {3: "7E8", 8: "18DAF110"}
 
 
 def pid_bitmaps(
@@ -56,7 +57,7 @@ def _compact_hex(line: bytes) -> bytes | None:
     return compact if _HEX.fullmatch(compact) else None
 
 
-def _single_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | None:
+def _can_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | None:
     address = compact[:address_width]
     frame_hex = compact[address_width:]
     if len(frame_hex) < 4:
@@ -73,8 +74,38 @@ def _single_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | Non
     if len(frame_hex) > 16:
         return None
 
-    frame = bytes.fromhex(frame_hex.decode("ascii"))
+    return address.decode("ascii"), bytes.fromhex(frame_hex.decode("ascii"))
+
+
+def _single_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | None:
+    parsed = _can_frame(compact, address_width)
+    if parsed is None:
+        return None
+    address, frame = parsed
+    payload = single_frame_payload(frame)
+    return (address, payload) if payload is not None else None
+
+
+def single_frame_payload(frame: bytes) -> bytes | None:
     length = frame[0]
     if not 1 <= length <= 7 or length >= len(frame):
         return None
-    return address.decode("ascii"), frame[1 : 1 + length]
+    return frame[1 : 1 + length]
+
+
+def has_pid_reply(lines: tuple[bytes, ...], pid: int, addresses: set[str], width: int) -> bool:
+    """Recognize a positive Mode 01 single frame or first frame from an advertising ECU."""
+    prefix = bytes((0x41, pid))
+    for line in lines:
+        compact = _compact_hex(line)
+        parsed = _can_frame(compact, width) if compact else None
+        if parsed is None or parsed[0] not in addresses:
+            continue
+        frame = parsed[1]
+        payload = single_frame_payload(frame)
+        if payload and len(payload) > 2 and payload.startswith(prefix):
+            return True
+        if (len(frame) == 8 and frame[0] >> 4 == 1 and frame[2:4] == prefix
+                and (int.from_bytes(frame[:2], "big") & 0xFFF) > 7):
+            return True
+    return False

@@ -30,7 +30,7 @@ To compare your own drives, pass their CSV paths to `cardaq view`. Supply one `-
 
 ## Record a drive
 
-Connect the adapter, close other applications using it, and find its serial port. Replace `COM5` below with the listed device. The recording command uses the Civic-specific polling profile.
+Connect the adapter, close other applications using it, and find its serial port. Replace `COM5` below with the listed device. The default recording profile uses Civic-specific requests. For a new CAN vehicle, use `cardaq sweep --auto --sample --port COM5` to inventory its channels and `cardaq record --profile standard --port COM5` to record them. [First drive in another vehicle](docs/RECORDINGS.md#first-drive-in-another-vehicle)
 
 ```sh
 uv run --locked cardaq ports

@@ -27,7 +27,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     sweep_parser.add_argument(
         "--sample", action="store_true", help="read each distinct advertised data PID once"
     )
-    record_parser = commands.add_parser("record", help="record the Civic's live data to a new CSV")
+    sweep_parser.add_argument("--auto", action="store_true", help="start a fresh automatic protocol search")
+    record_parser = commands.add_parser("record", help="record live data to a new CSV")
+    record_parser.add_argument(
+        "--profile", choices=("honda-civic", "standard"), default="honda-civic",
+        help="choose the Civic or discovered standard CAN polling profile",
+    )
     record_parser.add_argument(
         "--output", type=Path, help="new CSV path (default: automatically named under captures/recordings)"
     )
@@ -93,10 +98,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"Hardware: {identity.hardware}")
                 print(f"Firmware: {identity.firmware}")
             elif args.command == "sweep":
-                _print_sweep(sweep(settings, sample=args.sample))
+                _print_sweep(sweep(settings, sample=args.sample, auto=args.auto))
             else:
                 result = record(
-                    settings, args.output, args.duration, note=args.note,
+                    settings, args.output, args.duration, note=args.note, profile=args.profile,
                     notify=lambda message: print(message, flush=True),
                 )
                 print(f"Saved {result.replies} replies to {result.path} ({result.stop_reason}).", flush=True)

@@ -18,7 +18,7 @@ from serial import Serial
 from cardaq.adapter import AdapterError
 from cardaq.capture import record
 from cardaq.config import SerialSettings
-from cardaq.viewer import write_viewer
+from cardaq.viewer import read_capture_samples, write_viewer
 
 
 _ENGINE_OFF = b"18 DA F1 10 04 41 0C 00 00"
@@ -173,6 +173,77 @@ class CaptureTests(unittest.TestCase):
     def capture(self, request, duration: float = 60):
         with patch("cardaq.capture.request", side_effect=request):
             return record(self.settings, self.output, duration, note="Heater on at 04:00; outside, 5 °C", notify=lambda _: None)
+
+    def test_standard_profile_discovers_per_connection_and_records_11_bit_responders(self) -> None:
+        messages = []
+        commands = defaultdict(list)
+        self.enterContext(patch("cardaq.capture.Path.cwd", return_value=self.output.parent))
+
+        def exchange(port, command, _timeout):
+            commands[port].append(command)
+            self.clock.sleep(0.1)
+            if command == b"ATDPN":
+                return (b"A6",)
+            if command in (b"ATD", b"ATTP0", b"ATAR", b"ATH1", b"ATCAF1", b"ATCFC1", b"ATH0"):
+                return (b"OK",)
+            if command == b"0100":
+                if port == 1:
+                    return (b"7E8 06 41 00 08 18 00 00", b"7EA 06 41 00 00 08 00 00")
+                return (b"7EA 06 41 00 00 08 00 00",)
+            if command == b"010C":
+                return (b"7E8 04 41 0C 00 00",)
+            if command == b"010D":
+                if port == 2:
+                    return (b"7EA 03 41 0D 13",)
+                return (b"7EA 03 41 0D 29", b"7E8 03 41 0D 1E")
+            if command == b"0105" and commands[port].count(command) == 1:
+                return (b"7E8 03 41 05 63",)
+            if command == b"0105":
+                raise AdapterError("simulated disconnect")
+            self.fail(f"Unexpected standard-profile request {command!r}")
+
+        with patch("cardaq.capture.request", side_effect=exchange), patch("cardaq.obd.request", side_effect=exchange):
+            result = record(self.settings, None, 6, profile="standard", notify=messages.append)
+        self.assertEqual(self.opened, 2)
+        self.assertEqual(self.closed, 2)
+        self.assertEqual(sum(msg.startswith("Ready") for msg in messages), 2)
+        self.assertEqual(set(commands[2]) & {b"010C", b"0105"}, set())
+        metadata = json.loads(result.path.with_suffix(".capture.json").read_text())
+        self.assertEqual(metadata["polling_profile"], "standard")
+        with result.path.open(encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        inventory = [json.loads(row["detail"]) for row in rows if row["event"] == "inventory"]
+        self.assertEqual(inventory, [{"7E8": ["05", "0C", "0D"], "7EA": ["0D"]}, {"7EA": ["0D"]}])
+        self.assertEqual(result.replies, sum(row["event"] == "reply" for row in rows))
+        other = next(row for row in rows if row["reply"] == "7EA 03 41 0D 13")
+        self.assertEqual((other["event"], other["ecm_vehicle_speed_kph"]), ("reply", ""))
+        series = read_capture_samples(result.path).series
+        self.assertEqual(series["ecm_engine_speed_rpm"][0][1], 0)
+        self.assertEqual(series["ecm_vehicle_speed_kph"][0][1], 30)
+        self.assertEqual(series["ecm_engine_coolant_c"][0][1], 59)
+        write_viewer([result.path], self.output.with_suffix(".html"))
+
+    def test_standard_profile_requires_matching_positive_data_before_ready(self) -> None:
+        messages = []
+        def exchange(port, command, _timeout):
+            self.clock.sleep(0.05)
+            if command == b"ATDPN":
+                return (b"A7",)
+            if command == b"0100":
+                return (b"18 DA F1 10 06 41 00 01 00 00 00",)  # PID 08 only
+            if command == b"0108":
+                if port == 1:
+                    return (b"18 DA F1 12 03 41 08 42", b"18 DA F1 10 03 41 05 42", b"18 DA F1 10 03 7F 01 12")
+                self.stop_file.touch()
+                return (b"18 DA F1 10 03 41 08 42",)
+            self.assertTrue(command.startswith(b"AT"))
+            return (b"OK",)
+        with patch("cardaq.capture.request", side_effect=exchange), patch("cardaq.obd.request", side_effect=exchange):
+            result = record(self.settings, self.output, 10, profile="standard", notify=messages.append)
+        self.assertEqual(result.replies, 1)
+        self.assertEqual(result.stop_reason, "stop_requested")
+        self.assertEqual(sum(msg.startswith("Ready") for msg in messages), 1)
+        self.assertEqual([r["event"] for r in self.rows() if r["request"] == "0108"], ["adapter_status", "reply"])
 
     def assert_finished(self, result, reason: str) -> list[dict[str, str]]:
         self.assertEqual(result.path, self.output)

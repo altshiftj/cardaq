@@ -1,7 +1,7 @@
 """Decode selected measurements from the Civic pilot's raw diagnostic replies."""
 
 from .honda_fields import HONDA_FIELDS
-from .obd_frames import _compact_hex, _single_frame, coolant_temperatures
+from .obd_frames import ENGINE_RESPONSE_IDS, _compact_hex, _single_frame, coolant_temperatures
 
 
 _ECUS = {"18DAF110": "ecm", "18DAF11E": "tcm"}
@@ -27,14 +27,18 @@ MEASUREMENT_COLUMNS = (
 )
 
 
-def pilot_measurements(command: bytes, reply: tuple[bytes, ...]) -> dict[str, int | float]:
+def pilot_measurements(
+    command: bytes, reply: tuple[bytes, ...], *, standard_width: int | None = None,
+) -> dict[str, int | float]:
     """Return usable values for known requests, leaving other data in the raw reply."""
     command = _compact_hex(command)
+    width = standard_width or 8
+    ecus = _ECUS if standard_width is None else {ENGINE_RESPONSE_IDS[width]: "ecm"}
     if command == b"0167":
         return {
-            f"{_ECUS[address]}_coolant_sensor_{sensor}_c": value
-            for address, temperatures in coolant_temperatures(reply, 8)
-            if address in _ECUS
+            f"{ecus[address]}_coolant_sensor_{sensor}_c": value
+            for address, temperatures in coolant_temperatures(reply, width)
+            if address in ecus
             for sensor, value in enumerate(temperatures, 1)
             if value is not None
         }
@@ -44,15 +48,15 @@ def pilot_measurements(command: bytes, reply: tuple[bytes, ...]) -> dict[str, in
         values = {}
         for line in reply:
             compact = _compact_hex(line)
-            frame = _single_frame(compact, 8) if compact else None
+            frame = _single_frame(compact, width) if compact else None
             if frame is None:
                 continue
             address, payload = frame
-            if address in _ECUS and len(payload) == length + 2 and payload.startswith(prefix):
+            if address in ecus and len(payload) == length + 2 and payload.startswith(prefix):
                 raw = int.from_bytes(payload[2:], "big")
-                values[f"{_ECUS[address]}_{name}"] = raw if divisor == 1 else raw / divisor
+                values[f"{ecus[address]}_{name}"] = raw if divisor == 1 else raw / divisor
         return values
-    if command in HONDA_FIELDS:
+    if standard_width is None and command in HONDA_FIELDS:
         data = _honda_data(command, reply)
         if data is not None:
             return {

@@ -6,7 +6,16 @@
 
 For a repeatable setup, copy `cardaq.example.toml` to `cardaq.toml`, set `[serial].port`, and pass `--config cardaq.toml` to `identify`, `sweep`, or `record`. Explicit command-line settings take precedence over the file. The defaults are 115200 baud and a two-second serial timeout. If opening a listed port fails, check its name and close OBDwiz or another process using the adapter. [Example configuration](../cardaq.example.toml)
 
-Use `sweep` to see which standard Mode 01 parameter identifiers (PIDs) each electronic control unit (ECU) advertises. Add `--sample` to read each distinct advertised PID once. On the project Civic, the engine and transmission modules both report coolant temperatures under PID `67`. The recorder uses a fixed Civic polling profile. Running a sweep does not change that profile. [Civic PID inventory](changes/0002-pid-sweep/pid-inventory.md)
+Use `sweep` to see which standard Mode 01 parameter identifiers (PIDs) each electronic control unit (ECU) advertises. Add `--sample` to read each distinct advertised PID once. On the project Civic, the engine and transmission modules both report coolant temperatures under PID `67`. The default recording profile uses the Civic's fixed requests. Select the standard profile to record the advertised channels on another CAN vehicle. [Civic PID inventory](changes/0002-pid-sweep/pid-inventory.md)
+
+## First drive in another vehicle
+
+1. While parked, plug the USB OBDLink EX into the diagnostic socket and laptop, close OBDwiz, and switch the ignition on. Run `uv run --locked cardaq ports` and substitute the listed port for `COM5`. Use `uv run --locked cardaq identify --port COM5` to confirm the adapter.
+2. Run `uv run --locked cardaq sweep --auto --sample --port COM5`. This starts a fresh adapter protocol search and samples the live-data channels that each responding module advertises. Keep the output if you want to compare it with a later sweep. For a crank-power estimate, look for `0C`, `62`, `63`, and `8E` on the engine responder. Their sample values and interpretation still need checking on the vehicle.
+3. Run a one-minute parked test with the engine running. Use `uv run --locked cardaq record --profile standard --port COM5 --duration 60`. Check the printed path. Wait for `Ready`, then open the CSV with `uv run --locked cardaq view <CSV-path>` and compare RPM with the tachometer and road speed with the parked value of zero.
+4. Start a fresh recording with `uv run --locked cardaq record --profile standard --port COM5`. It runs for up to 45 minutes by default. Use `--duration 7200` for two hours. Wait for `Ready`, leave the recorder unattended, and stop with Ctrl+C once parked. Use a separate vehicle manifest for any future health history.
+
+The standard profile discovers 11-bit or 29-bit ISO 15765-4 CAN and repeats discovery after a reconnect. Each `inventory` row maps response IDs to supported PIDs. A `reply` row preserves the addressed frames, including signals that await a decoder. The viewer decodes selected standard signals from conventional engine responders `7E8` and `18DAF110`. Availability of Toyota-specific transmission and AWD data requires separate verification.
 
 ## Start and finish a capture
 
@@ -14,7 +23,7 @@ Use `sweep` to see which standard Mode 01 parameter identifiers (PIDs) each elec
 uv run --locked cardaq record --config cardaq.toml --duration 1800 --note "Engine cold at start"
 ```
 
-1. While parked, start the recorder. It prints the new CSV path. The `Ready` line confirms an ECM RPM response. Zero RPM is a valid observation with the ignition on and the engine off.
+1. While parked, start the recorder. It prints the new CSV path. On the Civic profile, `Ready` confirms an ECM RPM response. On the standard profile, it confirms the first positive advertised data reply. Zero RPM is a valid observation with the ignition on and the engine off.
 2. Leave the recorder running unattended during the drive. The CSV is flushed after every row and synced to disk periodically.
 3. Once parked, press Ctrl+C for a foreground run, or create an empty file with `.stop` appended to the printed CSV path. The suffix is `.csv.stop`. The recorder also stops at the duration limit. A normal stop writes an `end` row. A foreground interruption exits with status 130.
 
@@ -44,7 +53,7 @@ Each row describes one recorder event. During polling, a single row can hold rep
 | `timestamp` | Local wall-clock time with UTC offset, recorded when writing the row. |
 | `elapsed_s` | Monotonic seconds since capture start. The viewer aligns samples using this clock. |
 | `request_elapsed_s` | Monotonic time just before sending that query. Subtract it from `elapsed_s` to estimate reply latency. |
-| `event` | `start`, `reply`, `no_data`, `adapter_status`, `transport_error`, or `end`. |
+| `event` | `start`, `inventory` (standard profile), `reply`, `no_data`, `adapter_status`, `transport_error`, or `end`. |
 | `request` and `reply` | Query text and returned frames. Multiple response lines are joined with a vertical bar. |
 | `detail` | Start note, transport error, or reason for stopping. |
 | Measurement columns | Sparse standard readings and Honda-specific fields. The `candidate_` prefix marks provisional identities or scales. |

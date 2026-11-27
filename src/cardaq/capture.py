@@ -1,4 +1,4 @@
-"""Record the Civic's read-only diagnostic traffic directly to a durable CSV."""
+"""Record read-only diagnostic traffic directly to a durable CSV."""
 
 import csv
 import hashlib
@@ -19,6 +19,8 @@ from serial import Serial
 
 from .adapter import AdapterError, open_connection, request
 from .config import SerialSettings
+from .obd import SweepResult, discover_standard
+from .obd_frames import has_pid_reply
 from .pilot_measurements import MEASUREMENT_COLUMNS, pilot_measurements
 
 
@@ -81,11 +83,14 @@ class _CaptureCsv:
 
 def record(
     settings: SerialSettings, output: Path | None, duration: float, *, note: str = "",
-    notify: Callable[[str], None] = print,
+    profile: str = "honda-civic", notify: Callable[[str], None] = print,
 ) -> CaptureResult:
-    """Log the Civic's known requests, using the dated capture library when output is absent."""
+    """Log the selected profile, using the dated capture library when output is absent."""
     if not isfinite(duration) or duration <= 0:
         raise ValueError("Capture duration must be a finite positive number of seconds.")
+
+    if profile not in ("honda-civic", "standard"):
+        raise ValueError(f"Unknown polling profile {profile!r}.")
 
     if output is not None:
         output = output.resolve()
@@ -94,7 +99,7 @@ def record(
             raise FileExistsError(f"The stop file {stop_path} already exists. Use a fresh output path.")
         output.parent.mkdir(parents=True, exist_ok=True)
         with output.open("x", encoding="utf-8", newline="") as stream:
-            return _record_csv(settings, output, stream, duration, note, notify)
+            return _record_csv(settings, output, stream, duration, note, profile, notify)
 
     created = datetime.now(timezone.utc)
     output, stream = _new_managed_capture(created)
@@ -107,7 +112,7 @@ def record(
         "started_utc": None,
         "format": "cardaq-csv",
         "source": "cardaq-record",
-        "polling_profile": "honda-civic",
+        "polling_profile": profile,
         "status": "recording",
         "stop_reason": None,
         "replies": None,
@@ -120,7 +125,7 @@ def record(
 
     try:
         with stream:
-            result = _record_csv(settings, output, stream, duration, note, notify, on_start=mark_recording)
+            result = _record_csv(settings, output, stream, duration, note, profile, notify, on_start=mark_recording)
         with output.open("rb") as source:
             digest = hashlib.file_digest(source, "sha256").hexdigest()
         _write_metadata(sidecar, {
@@ -170,7 +175,7 @@ def _write_metadata(path: Path, metadata: dict[str, str | int | None]) -> None:
 
 def _record_csv(
     settings: SerialSettings, output: Path, stream: TextIO, duration: float, note: str,
-    notify: Callable[[str], None], *, on_start: Callable[[datetime], None] | None = None,
+    profile: str, notify: Callable[[str], None], *, on_start: Callable[[datetime], None] | None = None,
 ) -> CaptureResult:
     started = monotonic()
     log = _CaptureCsv(stream, started)
@@ -184,7 +189,7 @@ def _record_csv(
     stop_path = output.with_suffix(output.suffix + ".stop")
     capture = _Capture(settings, log, stop_path, started + duration, notify)
     try:
-        reason = capture.run()
+        reason = capture.run(profile)
     except KeyboardInterrupt:
         reason = "interrupted"
     log.write("end", detail=reason)
@@ -213,17 +218,51 @@ class _Capture:
             return "duration"
         return None
 
-    def run(self) -> str:
+    def run(self, profile: str) -> str:
         while (reason := self.stop_reason()) is None:
             try:
                 with open_connection(self.settings) as port:
+                    if profile == "standard":
+                        try:
+                            inventory = discover_standard(port, self.settings.timeout)
+                            self.capture_standard(port, inventory)
+                        finally:
+                            with suppress(AdapterError):
+                                self.configure(port, b"ATH0")
+                        continue
                     self.configure(port, b"ATTP7", b"ATAR", _FUNCTIONAL_HEADER, b"ATH1", b"ATCAF1", b"ATCFC1")
                     self.capture_connected(port)
                     self.configure(port, _FUNCTIONAL_HEADER, b"ATAR", b"ATH0")
             except AdapterError as error:
                 self.log.write("transport_error", detail=str(error))
+                if profile == "standard":
+                    self.notify(f"Retrying standard discovery: {error}")
                 self.wait_for_retry()
         return reason
+
+    def capture_standard(self, port: Serial, inventory: SweepResult) -> None:
+        responders: dict[bytes, set[str]] = {}
+        for ecu in inventory.ecus:
+            for pid in ecu.pids:
+                responders.setdefault(f"01{pid:02X}".encode("ascii"), set()).add(ecu.address)
+        detail = {ecu.address: [f"{pid:02X}" for pid in ecu.pids] for ecu in inventory.ecus}
+        self.log.write("inventory", detail=json.dumps(detail))
+        if not responders:
+            raise AdapterError("No standard data PIDs advertised.")
+        width = len(inventory.ecus[0].address)
+        commands = sorted(responders, key=lambda cmd: (cmd not in (b"010C", b"010D"), cmd))
+        ready = False
+        while self.stop_reason() is None:
+            before = self.replies
+            for command in commands:
+                if self.stop_reason() is not None:
+                    return
+                self.poll(port, command, standard_width=width, responders=responders[command])
+                if not ready and self.replies > before:
+                    self.notify(f"Ready: received {command.decode()} data; polling {len(commands)} advertised PIDs.")
+                    ready = True
+            if self.replies == before:
+                raise AdapterError("No advertised data PID returned a positive reply.")
 
     def configure(self, port: Serial, *commands: bytes) -> None:
         for command in commands:
@@ -268,15 +307,21 @@ class _Capture:
             self.poll(port, command)
         self.configure(port, _FUNCTIONAL_HEADER)
 
-    def poll(self, port: Serial, command: bytes) -> dict[str, int | float]:
+    def poll(
+        self, port: Serial, command: bytes, *, standard_width: int | None = None, responders: set[str] | None = None,
+    ) -> dict[str, int | float]:
         if self.stop_reason() is not None:
             return {}
         sent = monotonic()
         reply = request(port, command, self.settings.timeout)
-        measurements = pilot_measurements(command, reply)
+        measurements = pilot_measurements(command, reply, standard_width=standard_width)
+        if standard_width is not None and responders is not None:
+            positive = has_pid_reply(reply, int(command[2:], 16), responders, standard_width)
+        else:
+            positive = bool(measurements) or any(line[:2] == b"18" for line in reply)
         if not reply or reply == (b"NO DATA",):
             event = "no_data"
-        elif measurements or any(line[:2] == b"18" for line in reply):
+        elif positive:
             event = "reply"
             self.replies += 1
         else:

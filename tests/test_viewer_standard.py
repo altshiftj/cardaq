@@ -52,3 +52,12 @@ class StandardObservationTests(unittest.TestCase):
         ):
             with self.subTest(reply=malformed):
                 self.assertEqual(standard_observations("0168", malformed), {})
+
+    def test_11_bit_engine_multiframe_ignores_interleaved_other_responder(self) -> None:
+        first = "7E8 8 10 09 41 68 01 31 00 00"
+        unrelated = "7EA 21 FF FF FF FF FF FF FF"
+        self.assertEqual(standard_observations("0168", f"{first} | {unrelated}"), {})
+        self.assertEqual(
+            standard_observations("0168", f"{first} | {unrelated} | 7E8 21 00 00 00"),
+            {"ecm_intake_air_temperature_c": 9},
+        )
