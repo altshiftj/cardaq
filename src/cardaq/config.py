@@ -1,6 +1,7 @@
 """Resolve serial settings from TOML and command-line overrides."""
 
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
@@ -27,6 +28,7 @@ def serial_settings(
     port: str | None = None,
     baudrate: int | None = None,
     timeout: float | None = None,
+    default_port: Callable[[], str] | None = None,
 ) -> SerialSettings:
     values = {}
     if path is not None:
@@ -43,6 +45,8 @@ def serial_settings(
 
     if port is None:
         port = values.get("port")
+    if port is None and default_port is not None:
+        port = default_port()
     if port is None:
         raise ConfigError("Choose a port from 'cardaq ports'. Set --port or [serial].port.")
     if not isinstance(port, str) or not port.strip():

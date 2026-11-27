@@ -30,16 +30,15 @@ To compare your own drives, pass their CSV paths to `cardaq view`. Supply one `-
 
 ## Record a drive
 
-Connect the adapter, close other applications using it, and find its serial port. Replace `COM5` below with the listed device. The default recording profile uses Civic-specific requests. For a new CAN vehicle, use `cardaq sweep --auto --sample --port COM5` to inventory its channels and `cardaq record --profile standard --port COM5` to record them. [First drive in another vehicle](docs/RECORDINGS.md#first-drive-in-another-vehicle)
+While parked, connect the USB OBDLink, switch the ignition on, and run this from the repository root.
 
 ```sh
-uv run --locked cardaq ports
-uv run --locked cardaq identify --port COM5
-uv run --locked cardaq sweep --port COM5
-uv run --locked cardaq record --port COM5
+uv run --locked cardaq go
 ```
 
-Start the recorder while parked and wait for its `Ready` message. The recorder picks a filename under `captures/recordings/` and prints its path. Pass that path to `uv run --locked cardaq view` to save an offline report under `captures/views/`. Turning the ignition off can leave the process retrying until the duration expires. Once parked, press Ctrl+C to finish early. [Recording guide](docs/RECORDINGS.md) · [Example serial configuration](cardaq.example.toml)
+CarDAQ reads the VIN, prints the vehicle and polling profile, and saves a file such as `20261128T130600Z_2021-toyota-rav4-xle-12ab34cd56ef.csv`. The first part is the UTC start time. The last 12 hex characters identify the individual car across trips. Wait for `Ready` before driving. Once parked, press Ctrl+C to finish early. Use `cardaq view` to open a saved drive or `cardaq serve` to browse the library. [Recording guide](docs/RECORDINGS.md) · [Example configuration](cardaq.example.toml)
+
+The 2020 Civic LX CVT and 2021 RAV4 XLE VIN patterns are recognized offline. Other readable VINs get their own stable ID and use standard CAN OBD-II polling. For a first drive, sample the advertised channels and check a short parked recording. [First drive in another vehicle](docs/RECORDINGS.md#first-drive-in-another-vehicle)
 
 ## Track one vehicle over time
 

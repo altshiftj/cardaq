@@ -11,7 +11,6 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
-from uuid import UUID
 
 from serial import Serial
 
@@ -19,12 +18,15 @@ from cardaq.adapter import AdapterError
 from cardaq.capture import record
 from cardaq.config import SerialSettings
 from cardaq.obd import EcuPids, SweepResult
+from cardaq.vehicle import Vehicle
 from cardaq.viewer import read_capture_samples, write_viewer
 from cardaq.viewer.derived import derive_series
 
 
 _ENGINE_OFF = b"18 DA F1 10 04 41 0C 00 00"
 _ENGINE_RUNNING = b"18 DA F1 10 04 41 0C 1F 40"
+_CIVIC_INVENTORY = SweepResult((EcuPids("18DAF110", (0x0C,)),), ())
+_CIVIC = Vehicle("19XFC2F60LE000001", "identified", ("18DAF110",), "2020 Honda Civic LX", "honda-civic")
 
 
 class FakeClock:
@@ -96,6 +98,8 @@ class CaptureReplayTests(unittest.TestCase):
             return len(wire_command)
 
         connection.write.side_effect = exchange
+        self.enterContext(patch("cardaq.capture.discover_standard", return_value=_CIVIC_INVENTORY))
+        self.enterContext(patch("cardaq.capture._read_vehicle", return_value=_CIVIC))
         with patch("cardaq.capture.os.fsync"):
             result = record(SerialSettings(connection.port), capture, 90, notify=lambda _: None)
 
@@ -158,6 +162,10 @@ class CaptureTests(unittest.TestCase):
         self.enterContext(patch("cardaq.capture.monotonic", self.clock.monotonic))
         self.enterContext(patch("cardaq.capture.sleep", self.clock.sleep))
         self.enterContext(patch("cardaq.capture.open_connection", self.connect))
+        self.enterContext(patch("cardaq.capture._read_vehicle", return_value=_CIVIC))
+
+    def simulate_civic_discovery(self):
+        self.enterContext(patch("cardaq.capture.discover_standard", return_value=_CIVIC_INVENTORY))
 
     @contextmanager
     def connect(self, settings):
@@ -173,6 +181,7 @@ class CaptureTests(unittest.TestCase):
             return list(csv.DictReader(stream, strict=True))
 
     def capture(self, request, duration: float = 60):
+        self.simulate_civic_discovery()
         with patch("cardaq.capture.request", side_effect=request):
             return record(self.settings, self.output, duration, note="Heater on at 04:00; outside, 5 °C", notify=lambda _: None)
 
@@ -412,6 +421,7 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(self.opened, 0)
 
     def test_managed_captures_use_unique_utc_ids_and_finalize_their_metadata(self) -> None:
+        self.simulate_civic_discovery()
         root = self.output.parent
         folder = root / "captures" / "recordings" / "2026-11-26"
         now = datetime(2026, 11, 26, 0, 1, 2, 345678, tzinfo=timezone.utc)
@@ -434,12 +444,11 @@ class CaptureTests(unittest.TestCase):
             return (_ENGINE_RUNNING,)
 
         folder.mkdir(parents=True)
-        blocked = folder / f"20261126T000102.345678Z-{UUID(int=1).hex}.csv"
+        blocked = folder / f"20261126T000102Z_{_CIVIC.file_tag}.csv"
         blocked.write_bytes(b"previous raw capture")
-        with patch("cardaq.capture.uuid4", side_effect=[UUID(int=1), UUID(int=2), UUID(int=3)]):
-            with patch("cardaq.capture.request", side_effect=request):
-                first = record(self.settings, None, 0.25, notify=notify)
-                second = record(self.settings, None, 0.25, notify=notify)
+        with patch("cardaq.capture.request", side_effect=request):
+            first = record(self.settings, None, 0.25, notify=notify)
+            second = record(self.settings, None, 0.25, notify=notify)
 
         self.assertNotEqual(first.path, second.path)
         self.assertEqual(blocked.read_bytes(), b"previous raw capture")
@@ -447,15 +456,15 @@ class CaptureTests(unittest.TestCase):
             with self.subTest(path=result.path):
                 path = result.path
                 self.assertEqual(path.parent, folder)
-                self.assertRegex(path.name, r"^20261126T000102\.345678Z-[0-9a-f]{32}\.csv$")
+                self.assertRegex(path.name, rf"^20261126T000102Z_{_CIVIC.file_tag}_[0-9a-f]{{8}}\.csv$")
                 self.assertIn(f"Recording to {path}", messages)
                 with path.open(encoding="utf-8", newline="") as stream:
                     rows = list(csv.DictReader(stream, strict=True))
-                self.assertEqual([row["event"] for row in rows], ["start", "reply", "end"])
+                self.assertEqual([row["event"] for row in rows], ["start", "vehicle", "reply", "end"])
                 started = datetime.fromisoformat(rows[0]["timestamp"]).astimezone(timezone.utc)
                 metadata = json.loads(path.with_suffix(".capture.json").read_text(encoding="utf-8"))
                 self.assertEqual(live, {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "capture_id": path.stem,
                     "csv": path.name,
                     "created_utc": "2026-11-26T00:01:02.345Z",
@@ -463,6 +472,7 @@ class CaptureTests(unittest.TestCase):
                     "format": "cardaq-csv",
                     "source": "cardaq-record",
                     "polling_profile": "honda-civic",
+                    "vehicle": {**_CIVIC.provenance(), "vin": _CIVIC.vin},
                     "status": "recording",
                     "stop_reason": None,
                     "replies": None,
@@ -474,6 +484,7 @@ class CaptureTests(unittest.TestCase):
                 })
 
     def test_managed_capture_preserves_raw_data_after_a_failure(self) -> None:
+        self.simulate_civic_discovery()
         root = self.output.parent
         self.enterContext(patch("cardaq.capture.Path.cwd", return_value=root))
 
@@ -492,13 +503,14 @@ class CaptureTests(unittest.TestCase):
         sidecar, = path.parent.glob("*.capture.json")
         with path.open(encoding="utf-8", newline="") as stream:
             rows = list(csv.DictReader(stream, strict=True))
-        self.assertEqual([row["event"] for row in rows], ["start", "reply"])
+        self.assertEqual([row["event"] for row in rows], ["start", "vehicle", "reply"])
         metadata = json.loads(sidecar.read_text(encoding="utf-8"))
         self.assertEqual(metadata["status"], "failed")
         self.assertIsNone(metadata["sha256"])
         self.assertEqual(set(path.parent.iterdir()), {path, sidecar})
 
     def test_managed_capture_finalizes_after_interrupt(self) -> None:
+        self.simulate_civic_discovery()
         root = self.output.parent
         self.enterContext(patch("cardaq.capture.Path.cwd", return_value=root))
         with patch("cardaq.capture.request", side_effect=KeyboardInterrupt):
@@ -507,7 +519,7 @@ class CaptureTests(unittest.TestCase):
         path = result.path
         with path.open(encoding="utf-8", newline="") as stream:
             rows = list(csv.DictReader(stream, strict=True))
-        self.assertEqual([row["event"] for row in rows], ["start", "end"])
+        self.assertEqual([row["event"] for row in rows], ["start", "vehicle", "end"])
         self.assertEqual(result.stop_reason, "interrupted")
         metadata = json.loads(path.with_suffix(".capture.json").read_text(encoding="utf-8"))
         self.assertEqual(metadata["status"], "complete")

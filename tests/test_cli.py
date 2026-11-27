@@ -24,6 +24,18 @@ class CliOutputTests(unittest.TestCase):
         self.assertEqual(record.call_args.args, (SerialSettings("test-serial"), None, 5))
         self.assertIn(str(generated), self.stdout.getvalue())
 
+    def test_go_loads_local_serial_and_vehicle_settings_without_flags(self) -> None:
+        Path("cardaq.toml").write_text(
+            '[serial]\nport = "test-usb"\n[vehicles."19XFC2F60LE000001"]\nlabel = "My Civic"\n',
+            encoding="utf-8",
+        )
+        result = CaptureResult(Path("drive.csv"), "duration", 1)
+        with patch("cardaq.cli.record", return_value=result) as record:
+            self.assertEqual(main(["go"]), 0)
+        self.assertEqual(record.call_args.args[0], SerialSettings("test-usb"))
+        self.assertEqual(record.call_args.kwargs["profile"], "auto")
+        self.assertEqual(record.call_args.kwargs["profiles"], {"19XFC2F60LE000001": ("My Civic", "honda-civic")})
+
     def test_view_with_no_output_saves_a_report_and_provenance(self) -> None:
         capture = self.directory / "trip.csv"
         capture.write_text("elapsed_s,ecm_vehicle_speed_kph\n0,0\n1,36\n", encoding="utf-8")

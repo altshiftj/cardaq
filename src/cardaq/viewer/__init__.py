@@ -192,6 +192,7 @@ class CaptureSamples:
     timestamp_elapsed: float | None
     series: dict[str, list[list[float]]]
     reply_times: dict[int, list[float]]
+    vehicle: dict | None = None
 
 
 def read_capture_samples(
@@ -207,10 +208,20 @@ def read_capture_samples(
 
         started = None
         timestamp_elapsed = None
+        vehicle = None
         series: dict[str, list[list[float]]] = {column: [] for column in columns}
         status_samples = []
         reply_times: dict[int, list[float]] = {}
         for row in reader:
+            if row.get("event") == "vehicle" and vehicle is None:
+                try:
+                    identity = json.loads(row.get("detail") or "{}")
+                except ValueError:
+                    identity = None
+                if isinstance(identity, dict) and isinstance(identity.get("label"), str):
+                    digest = identity.get("vin_sha256")
+                    if digest is None or isinstance(digest, str) and re.fullmatch(r"[a-f0-9]{64}", digest):
+                        vehicle = {"label": identity["label"], "vin_sha256": digest}
             elapsed = _number(row.get("elapsed_s"))
             if started is None and row.get("timestamp"):
                 try:
@@ -245,7 +256,7 @@ def read_capture_samples(
         raise ValueError(f"{path} has no decoded samples to plot.")
     for points in series.values():
         points.sort(key=lambda point: point[0])
-    return CaptureSamples(started, timestamp_elapsed, series, reply_times)
+    return CaptureSamples(started, timestamp_elapsed, series, reply_times, vehicle)
 
 
 def _misfire_polls(series: dict) -> list[dict]:
@@ -290,6 +301,7 @@ def _read_capture(path: Path, label: str) -> dict:
         ]
     return {
         "name": label,
+        **({"vehicle": samples.vehicle} if samples.vehicle else {}),
         "started": (
             f"{started:%b} {started.day}, {started:%Y} · {started.hour % 12 or 12}:{started:%M %p}"
             if started else None

@@ -4,16 +4,16 @@
 
 `cardaq ports` lists serial devices without opening them. `cardaq identify` reads the selected adapter's hardware and firmware IDs. The USB OBDLink EX has been verified on Windows at 115200 baud. On Linux, pass the listed device path, for example `/dev/ttyUSB0`. Raspberry Pi hardware verification is still on the roadmap. The OBDLink CX uses a separate Bluetooth Low Energy transport. [OBDLink programming manual](https://www.scantool.net/scantool/downloads/682/obdlink_frpm_f.pdf) · [OBDLink CX developer notes](https://support.obdlink.com/support/solutions/articles/43000746707-obdlink-cx-adapter-notes)
 
-For a repeatable setup, copy `cardaq.example.toml` to `cardaq.toml`, set `[serial].port`, and pass `--config cardaq.toml` to `identify`, `sweep`, or `record`. Explicit command-line settings take precedence over the file. The defaults are 115200 baud and a two-second serial timeout. If opening a listed port fails, check its name and close OBDwiz or another process using the adapter. [Example configuration](../cardaq.example.toml)
+For a repeatable setup, copy `cardaq.example.toml` to `cardaq.toml` and set `[serial].port`. Both `go` and `record` load that file automatically from the current directory. Without a configured port they choose a uniquely named OBDLink, or the sole enumerated port. Use `--port` or `--config` to override the defaults. Pass `--config cardaq.toml` to reuse the settings with `identify` or `sweep`. The defaults are 115200 baud and a two-second serial timeout. [Example configuration](../cardaq.example.toml)
 
-Use `sweep` to see which standard Mode 01 parameter identifiers (PIDs) each electronic control unit (ECU) advertises. Add `--sample` to read each distinct advertised PID once. On the project Civic, the engine and transmission modules both report coolant temperatures under PID `67`. The default recording profile uses the Civic's fixed requests. Select the standard profile to record the advertised channels on another CAN vehicle. [Civic PID inventory](changes/0002-pid-sweep/pid-inventory.md)
+Use `sweep` to see which standard Mode 01 parameter identifiers (PIDs) each electronic control unit (ECU) advertises. Add `--sample` to read each distinct advertised PID once. On the project Civic, the engine and transmission modules both report coolant temperatures under PID `67`. Automatic recording selects Civic polling for its recognized 2020 LX CVT VIN pattern and 29-bit engine responder. Other vehicles use the advertised standard channels by default. [Civic PID inventory](changes/0002-pid-sweep/pid-inventory.md)
 
 ## First drive in another vehicle
 
 1. While parked, plug the USB OBDLink EX into the diagnostic socket and laptop, close OBDwiz, and switch the ignition on. Run `uv run --locked cardaq ports` and substitute the listed port for `COM5`. Use `uv run --locked cardaq identify --port COM5` to confirm the adapter.
 2. Run `uv run --locked cardaq sweep --auto --sample --port COM5`. This starts a fresh adapter protocol search and samples the live-data channels that each responding module advertises. Keep the output if you want to compare it with a later sweep. For a crank-power estimate, look for `0C`, `62`, `63`, and `8E` on the engine responder. Their sample values and interpretation still need checking on the vehicle.
-3. Run a one-minute parked test with the engine running. Use `uv run --locked cardaq record --profile standard --port COM5 --duration 60`. Check the printed path. Wait for `Ready`, then open the CSV with `uv run --locked cardaq view <CSV-path>` and compare RPM with the tachometer and road speed with the parked value of zero.
-4. Start a fresh recording with `uv run --locked cardaq record --profile standard --port COM5`. It runs for up to 45 minutes by default. Use `--duration 7200` for two hours. Wait for `Ready`, leave the recorder unattended, and stop with Ctrl+C once parked. Use a separate vehicle manifest for any future health history.
+3. Run a one-minute parked test with the engine running. Use `uv run --locked cardaq go --duration 60`. Check the printed car and path. Wait for `Ready`, then open the CSV with `uv run --locked cardaq view <CSV-path>` and compare RPM with the tachometer and road speed with the parked value of zero.
+4. Start a fresh recording with `uv run --locked cardaq go`. It runs for up to 45 minutes by default. Use `--duration 7200` for two hours. Wait for `Ready`, leave the recorder unattended, and stop with Ctrl+C once parked. Use a separate vehicle manifest for any future health history.
 
 The standard profile discovers 11-bit or 29-bit ISO 15765-4 CAN and repeats discovery after a reconnect. Each `inventory` row maps response IDs to supported PIDs. Each pass reads advertised RPM, speed and torque channels together so their timestamps are close. A `reply` row preserves the addressed frames, including signals that await a decoder. The viewer decodes selected standard signals from conventional engine responders `7E8` and `18DAF110`. Availability of Toyota-specific transmission and AWD data requires separate verification.
 
@@ -31,7 +31,11 @@ After key-off the adapter can remain powered while the vehicle stops answering. 
 
 ## Local capture library
 
-Run from the repository root to use one local library. The automatic recording path is `captures/recordings/<UTC-date>/<capture-id>.csv`. The identifier includes the UTC time and a random suffix, so recordings started together can have separate paths. Use `--output` when you want to set the path yourself.
+Run from the repository root to use one local library. A filename such as `captures/recordings/2026-11-28/20261128T130600Z_2021-toyota-rav4-xle-12ab34cd56ef.csv` gives the UTC recording start, model label, and the first 12 hex characters of SHA-256 over the full uppercase VIN. Identical model names can have different vehicle codes. A same-second filename collision adds a short suffix, and file creation is exclusive. Use `--output` to supply your own path.
+
+CarDAQ reads service 09 PID 02 over the active CAN connection. Complete VIN replies are assembled separately by responder. Missing or conflicting VINs produce an `unidentified` filename and an explicit identity status. An unfamiliar valid VIN gets a `vehicle-<code>` tag. To give a particular VIN a nickname or polling profile, add a `[vehicles."…"]` entry to the local TOML once. The label can change while the vehicle code stays stable. All identification runs offline. [Supported model patterns](changes/0022-vehicle-identity/report.md)
+
+The managed sidecar stores the full VIN, its full digest, responding CAN IDs and selected polling profile. The CSV's `vehicle` event carries the label, digest, identity status, responders and polling profile. An explicitly named CSV carries the same event. The viewer reads the vehicle identity from the CSV even if you move or rename it. Older captures retain their recorded labels. On reconnect, a previously identified recording waits for its VIN to be reconfirmed. A different or conflicting identity ends the recording with a `vehicle_change` event before new telemetry is accepted. Start the next car's file with `go`.
 
 | Directory | Contents |
 | --- | --- |
@@ -53,7 +57,7 @@ Each row describes one recorder event. During polling, a single row can hold rep
 | `timestamp` | Local wall-clock time with UTC offset, recorded when writing the row. |
 | `elapsed_s` | Monotonic seconds since capture start. The viewer aligns samples using this clock. |
 | `request_elapsed_s` | Monotonic time just before sending that query. Subtract it from `elapsed_s` to estimate reply latency. |
-| `event` | `start`, `inventory` (standard profile), `reply`, `no_data`, `adapter_status`, `transport_error`, or `end`. |
+| `event` | `start`, `vehicle`, `vehicle_change`, `inventory` (standard profile), `reply`, `no_data`, `adapter_status`, `transport_error`, or `end`. |
 | `request` and `reply` | Query text and returned frames. Multiple response lines are joined with a vertical bar. |
 | `detail` | Start note, transport error, or reason for stopping. |
 | Measurement columns | Sparse standard readings and Honda-specific fields. The `candidate_` prefix marks provisional identities or scales. |

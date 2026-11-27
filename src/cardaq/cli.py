@@ -6,10 +6,11 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from .adapter import AdapterError, available_ports, identify
+from .adapter import AdapterError, available_ports, identify, recording_port
 from .capture import record
 from .config import DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, serial_settings
 from .obd import SweepResult, sweep
+from .vehicle import vehicle_profiles
 from .viewer import write_managed_viewer, write_viewer
 
 
@@ -28,10 +29,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--sample", action="store_true", help="read each distinct advertised data PID once"
     )
     sweep_parser.add_argument("--auto", action="store_true", help="start a fresh automatic protocol search")
-    record_parser = commands.add_parser("record", help="record live data to a new CSV")
+    record_parser = commands.add_parser("record", aliases=["go"], help="identify the vehicle and record a drive")
     record_parser.add_argument(
-        "--profile", choices=("honda-civic", "standard"), default="honda-civic",
-        help="choose the Civic or discovered standard CAN polling profile",
+        "--profile", choices=("auto", "honda-civic", "standard"), default="auto",
+        help="choose polling from vehicle identity (default), or override the polling profile",
     )
     record_parser.add_argument(
         "--output", type=Path, help="new CSV path (default: automatically named under captures/recordings)"
@@ -89,8 +90,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             write_health(args.manifest, output)
             print(f"Saved powertrain history to {output.resolve()}")
         else:
+            recording = args.command in ("go", "record")
+            config = args.config
+            if recording and config is None and Path("cardaq.toml").is_file():
+                config = Path("cardaq.toml")
             settings = serial_settings(
-                args.config, port=args.port, baudrate=args.baudrate, timeout=args.timeout
+                config, port=args.port, baudrate=args.baudrate, timeout=args.timeout,
+                default_port=recording_port if recording else None,
             )
             if args.command == "identify":
                 identity = identify(settings)
@@ -101,13 +107,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _print_sweep(sweep(settings, sample=args.sample, auto=args.auto))
             else:
                 result = record(
-                    settings, args.output, args.duration, note=args.note, profile=args.profile,
+                    settings, args.output, args.duration, note=args.note, profile=args.profile, profiles=vehicle_profiles(config),
                     notify=lambda message: print(message, flush=True),
                 )
                 print(f"Saved {result.replies} replies to {result.path} ({result.stop_reason}).", flush=True)
                 if result.stop_reason == "interrupted":
                     return 130
-                if result.replies == 0:
+                if result.replies == 0 or result.stop_reason == "vehicle_changed":
                     return 1
     except (AdapterError, OSError, ValueError) as error:
         print(f"cardaq: {error}", file=sys.stderr)

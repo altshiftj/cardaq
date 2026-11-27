@@ -5,7 +5,7 @@ import hashlib
 import json
 import os
 from collections.abc import Callable
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from math import isfinite
@@ -22,6 +22,7 @@ from .config import SerialSettings
 from .obd import SweepResult, discover_standard
 from .obd_frames import has_pid_reply
 from .pilot_measurements import MEASUREMENT_COLUMNS, pilot_measurements
+from .vehicle import Vehicle, identify_vehicle
 
 
 _CIVIC_PIDS = (
@@ -44,6 +45,64 @@ class CaptureResult:
     path: Path
     stop_reason: str
     replies: int
+
+
+@dataclass
+class VehicleSession:
+    port: Serial
+    inventory: SweepResult
+    vehicle: Vehicle
+    profiles: dict[str, tuple[str, str]]
+    release: Callable[[], None]
+
+
+def _read_vehicle(port: Serial, inventory: SweepResult, timeout: float, profiles: dict) -> Vehicle:
+    lines = request(port, b"0902", timeout)
+    return identify_vehicle(lines, len(inventory.ecus[0].address), profiles)
+
+
+def record(
+    settings: SerialSettings, output: Path | None, duration: float, *, note: str = "",
+    profile: str = "auto", profiles: dict[str, tuple[str, str]] | None = None,
+    notify: Callable[[str], None] = print,
+) -> CaptureResult:
+    """Identify the vehicle before naming the capture. Keep the discovered connection for polling."""
+    if not isfinite(duration) or duration <= 0:
+        raise ValueError("Capture duration must be a finite positive number of seconds.")
+    if profile not in ("auto", "honda-civic", "standard"):
+        raise ValueError(f"Unknown polling profile {profile!r}.")
+    if output is not None and (output.exists() or output.with_suffix(output.suffix + ".stop").exists()):
+        raise FileExistsError(f"Choose a fresh capture path. The output or stop file exists for {output}.")
+    profiles = profiles or {}
+    with ExitStack() as connection:
+        deadline = monotonic() + duration
+        last_error = None
+        while True:
+            try:
+                port = connection.enter_context(open_connection(settings))
+                inventory = discover_standard(port, settings.timeout)
+                vehicle = _read_vehicle(port, inventory, settings.timeout, profiles)
+                break
+            except AdapterError as error:
+                connection.close()
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    raise
+                if str(error) != last_error:
+                    notify(f"Waiting for vehicle on {settings.port}: {error}")
+                    last_error = str(error)
+                sleep(min(_RECONNECT_SECONDS, remaining))
+        chosen = vehicle.profile if profile == "auto" else profile
+        if chosen == "honda-civic" and not any(ecu.address == "18DAF110" for ecu in inventory.ecus):
+            if profile != "auto":
+                raise AdapterError("The Civic profile requires its 29-bit engine responder. Use the standard profile.")
+            chosen = "standard"
+        notify(f"Vehicle {vehicle.file_tag} ({vehicle.status}). Polling profile {chosen}.")
+        session = VehicleSession(port, inventory, vehicle, profiles, connection.close)
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise AdapterError("The capture duration expired during vehicle discovery.")
+        return _save_recording(settings, output, remaining, note=note, profile=chosen, notify=notify, session=session)
 
 
 class _CaptureCsv:
@@ -81,17 +140,11 @@ class _CaptureCsv:
             self.last_sync = now
 
 
-def record(
-    settings: SerialSettings, output: Path | None, duration: float, *, note: str = "",
-    profile: str = "honda-civic", notify: Callable[[str], None] = print,
+def _save_recording(
+    settings: SerialSettings, output: Path | None, duration: float, *, note: str,
+    profile: str, notify: Callable[[str], None], session: VehicleSession,
 ) -> CaptureResult:
     """Log the selected profile, using the dated capture library when output is absent."""
-    if not isfinite(duration) or duration <= 0:
-        raise ValueError("Capture duration must be a finite positive number of seconds.")
-
-    if profile not in ("honda-civic", "standard"):
-        raise ValueError(f"Unknown polling profile {profile!r}.")
-
     if output is not None:
         output = output.resolve()
         stop_path = output.with_suffix(output.suffix + ".stop")
@@ -99,13 +152,13 @@ def record(
             raise FileExistsError(f"The stop file {stop_path} already exists. Use a fresh output path.")
         output.parent.mkdir(parents=True, exist_ok=True)
         with output.open("x", encoding="utf-8", newline="") as stream:
-            return _record_csv(settings, output, stream, duration, note, profile, notify)
+            return _record_csv(settings, output, stream, duration, note, profile, notify, session=session)
 
     created = datetime.now(timezone.utc)
-    output, stream = _new_managed_capture(created)
+    output, stream = _new_managed_capture(created, session.vehicle.file_tag)
     sidecar = output.with_suffix(".capture.json")
-    metadata: dict[str, str | int | None] = {
-        "schema_version": 1,
+    metadata = {
+        "schema_version": 2,
         "capture_id": output.stem,
         "csv": output.name,
         "created_utc": _utc_timestamp(created),
@@ -113,6 +166,7 @@ def record(
         "format": "cardaq-csv",
         "source": "cardaq-record",
         "polling_profile": profile,
+        "vehicle": {**session.vehicle.provenance(), "vin": session.vehicle.vin},
         "status": "recording",
         "stop_reason": None,
         "replies": None,
@@ -125,7 +179,8 @@ def record(
 
     try:
         with stream:
-            result = _record_csv(settings, output, stream, duration, note, profile, notify, on_start=mark_recording)
+            result = _record_csv(settings, output, stream, duration, note, profile, notify,
+                                 session=session, on_start=mark_recording, timestamp=created)
         with output.open("rb") as source:
             digest = hashlib.file_digest(source, "sha256").hexdigest()
         _write_metadata(sidecar, {
@@ -143,12 +198,13 @@ def _utc_timestamp(when: datetime) -> str:
     return when.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _new_managed_capture(created: datetime) -> tuple[Path, TextIO]:
+def _new_managed_capture(created: datetime, vehicle_tag: str) -> tuple[Path, TextIO]:
     directory = (Path.cwd() / "captures" / "recordings" / created.date().isoformat()).resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    prefix = created.strftime("%Y%m%dT%H%M%S.%fZ")
-    for _ in range(10):
-        output = directory / f"{prefix}-{uuid4().hex}.csv"
+    prefix = created.strftime("%Y%m%dT%H%M%SZ")
+    for attempt in range(10):
+        stem = f"{prefix}_{vehicle_tag}" + (f"_{uuid4().hex[:8]}" if attempt else "")
+        output = directory / f"{stem}.csv"
         if output.with_suffix(".capture.json").exists() or output.with_suffix(".csv.stop").exists():
             continue
         try:
@@ -158,7 +214,7 @@ def _new_managed_capture(created: datetime) -> tuple[Path, TextIO]:
     raise FileExistsError(f"Could not allocate a unique capture in {directory}.")
 
 
-def _write_metadata(path: Path, metadata: dict[str, str | int | None]) -> None:
+def _write_metadata(path: Path, metadata: dict) -> None:
     stream = NamedTemporaryFile(dir=path.parent, mode="w", encoding="utf-8", newline="\n", delete=False)
     temporary = Path(stream.name)
     try:
@@ -175,21 +231,23 @@ def _write_metadata(path: Path, metadata: dict[str, str | int | None]) -> None:
 
 def _record_csv(
     settings: SerialSettings, output: Path, stream: TextIO, duration: float, note: str,
-    profile: str, notify: Callable[[str], None], *, on_start: Callable[[datetime], None] | None = None,
+    profile: str, notify: Callable[[str], None], *, session: VehicleSession,
+    on_start: Callable[[datetime], None] | None = None, timestamp: datetime | None = None,
 ) -> CaptureResult:
     started = monotonic()
     log = _CaptureCsv(stream, started)
     if on_start is None:
         log.write("start", detail=note)
     else:
-        timestamp = datetime.now(timezone.utc)
+        timestamp = timestamp or datetime.now(timezone.utc)
         log.write("start", detail=note, timestamp=timestamp)
         on_start(timestamp)
+    log.write("vehicle", detail=json.dumps({**session.vehicle.provenance(), "polling_profile": profile}))
     notify(f"Recording to {output}")
     stop_path = output.with_suffix(output.suffix + ".stop")
     capture = _Capture(settings, log, stop_path, started + duration, notify)
     try:
-        reason = capture.run(profile)
+        reason = capture.run(profile, session)
     except KeyboardInterrupt:
         reason = "interrupted"
     log.write("end", detail=reason)
@@ -218,13 +276,27 @@ class _Capture:
             return "duration"
         return None
 
-    def run(self, profile: str) -> str:
+    def run(self, profile: str, session: VehicleSession) -> str:
+        first = session
         while (reason := self.stop_reason()) is None:
             try:
-                with open_connection(self.settings) as port:
+                with ExitStack() as connection:
+                    if first is not None:
+                        port, inventory = first.port, first.inventory
+                        connection.callback(first.release)
+                        first = None
+                    else:
+                        port = connection.enter_context(open_connection(self.settings))
+                        inventory = discover_standard(port, self.settings.timeout)
+                        current = _read_vehicle(port, inventory, self.settings.timeout, session.profiles)
+                        if session.vehicle.vin and current.status == "unavailable":
+                            raise AdapterError("Waiting to reconfirm the vehicle VIN.")
+                        if not current.vin or current.vin != session.vehicle.vin:
+                            self.log.write("vehicle_change", detail=json.dumps(current.provenance()))
+                            self.notify("Vehicle identity changed or could not be reconfirmed. Ending this recording.")
+                            return "vehicle_changed"
                     if profile == "standard":
                         try:
-                            inventory = discover_standard(port, self.settings.timeout)
                             self.capture_standard(port, inventory)
                         finally:
                             with suppress(AdapterError):
@@ -276,8 +348,9 @@ class _Capture:
         while self.stop_reason() is None:
             rpm = self.poll(port, _FAST_REQUESTS[0]).get("ecm_engine_speed_rpm")
             if rpm is None:
-                self.wait_for_retry()
-                continue
+                if self.stop_reason() is None:
+                    raise AdapterError("Engine responder unavailable. Rechecking vehicle identity.")
+                return
 
             for command in _FAST_REQUESTS[1:]:
                 self.poll(port, command)

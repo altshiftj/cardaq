@@ -3,3 +3,8 @@
 # port = "COM5"
 baudrate = 115200
 timeout = 2.0
+
+# Optional. In your local cardaq.toml, replace the placeholder with the car's VIN.
+# [vehicles."YOUR_17_CHAR_VIN"]
+# label = "Family wagon"
+# profile = "standard"

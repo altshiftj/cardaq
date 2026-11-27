@@ -122,6 +122,10 @@
     name.append(swatch(drive.color), element("span", "", drive.name));
     card.append(name);
     if (drive.started) card.append(element("p", "drive-meta", drive.started));
+    if (drive.vehicle) {
+      const code = drive.vehicle.vin_sha256?.slice(0, 12);
+      card.append(element("p", "drive-meta", [drive.vehicle.label, code].filter(Boolean).join(" · ")));
+    }
 
     const stats = element("dl", "drive-stats");
     const values = [

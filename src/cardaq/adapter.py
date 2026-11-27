@@ -42,6 +42,16 @@ def identify(settings: SerialSettings) -> AdapterIdentity:
     return AdapterIdentity(hardware, firmware)
 
 
+def recording_port() -> str:
+    ports = available_ports()
+    named = [device for device, description in ports if "obdlink" in (description or "").lower()]
+    if len(named) == 1:
+        return named[0]
+    if len(ports) == 1:
+        return ports[0][0]
+    raise AdapterError("Plug in the OBDLink, or select its port with --port or [serial].port in cardaq.toml.")
+
+
 @contextmanager
 def open_connection(settings: SerialSettings) -> Iterator[serial.Serial]:
     with _serial_io(settings.port):
