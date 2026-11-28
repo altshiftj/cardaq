@@ -38,10 +38,12 @@ jobs:
         run: uv run --locked pre-commit run --all-files --show-diff-on-failure
       - name: Test the installed wheel
         run: |
+          uv export --locked --only-group test --output-file "$RUNNER_TEMP/test-requirements.txt"
+          python -m pip install --require-hashes -r "$RUNNER_TEMP/test-requirements.txt"
           python -m pip install dist/*.whl
           cardaq --version
           python -m cardaq --help
-          python -m unittest discover -s tests -v
+          python -m pytest
       - name: Run the offline quickstart
         run: |
           python examples/generate_demo.py
@@ -53,4 +55,4 @@ jobs:
           uv export --locked --only-group browser --output-file "$RUNNER_TEMP/browser-requirements.txt"
           python -m pip install --require-hashes -r "$RUNNER_TEMP/browser-requirements.txt"
           python -m playwright install --with-deps --only-shell chromium
-          python -m unittest discover -s tests/browser -p offline_viewer.py -v
+          python -m pytest tests/browser/offline_viewer.py

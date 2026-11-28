@@ -10,7 +10,7 @@ Run these commands in the repository root with uv and Python 3.11 or later.
 uv sync --locked
 uv run --locked pre-commit install
 uv run --locked cardaq --version
-uv run --locked python -m unittest discover -s tests -v
+uv run --locked pytest
 uv build
 ```
 
@@ -18,13 +18,15 @@ Install the Git hook once per clone. On each commit it checks the staged files. 
 
 If a hook edits a file, review the diff, stage the intended changes, and retry the commit. If you changed dependencies, regenerate and stage `uv.lock` along with `pyproject.toml`. To run the same checks as CI on every tracked file, use `uv run --locked pre-commit run --all-files --show-diff-on-failure`. The first run downloads the pinned hooks. The full test suite and package build run separately in CI.
 
-To run one test module, use a discovery pattern such as `uv run --locked python -m unittest discover -s tests -p test_viewer_trip.py -v`. VS Code's checked-in settings use the same unittest suite. For viewer changes, open the offline demo and inspect the changed metric or control. The HTML, CSS, and JavaScript ship in the Python wheel. [Demo commands](README.md#try-the-viewer)
+To run one module, use `uv run --locked pytest tests/test_viewer_trip.py`. VS Code discovers the same suite. Write new tests as pytest functions with plain assertions and fixtures where needed. Existing `unittest.TestCase` cases also run under pytest.
+
+For viewer changes, open the offline demo and inspect the changed metric or control. The HTML, CSS, and JavaScript ship in the Python wheel. [Demo commands](README.md#try-the-viewer)
 
 CI also opens an exported HTML file in headless Chromium. Run those browser tests locally with the browser dependency group.
 
 ```sh
 uv run --locked --group browser python -m playwright install --only-shell chromium
-uv run --locked --group browser python -m unittest discover -s tests/browser -p offline_viewer.py -v
+uv run --locked --group browser pytest tests/browser/offline_viewer.py
 ```
 
 ## Where changes belong
