@@ -58,7 +58,8 @@ def write_health(manifest: Path, output: Path) -> None:
 
     trips = []
     intervals = []
-    for entry in entries:
+    known_vehicle_code = None
+    for index, entry in enumerate(entries, start=1):
         if not isinstance(entry, dict):
             raise ValueError("Each [[trip]] must be a table.")
         path = (manifest.parent / _text(entry, "capture")).resolve()
@@ -68,6 +69,10 @@ def write_health(manifest: Path, output: Path) -> None:
         group = _text(entry, "group")
         note = _text(entry, "note", "")
         samples = read_capture_samples(path, extra_decoder=diagnostic_observations)
+        if samples.vehicle and (code := samples.vehicle["vin_sha256"]):
+            if known_vehicle_code is not None and code != known_vehicle_code:
+                raise ValueError(f"Trip {index} belongs to a different vehicle. Use one vehicle per health manifest.")
+            known_vehicle_code = code
         if samples.timestamp is None or samples.timestamp.utcoffset() is None or samples.timestamp_elapsed is None:
             raise ValueError(f"{path} needs a timestamp with UTC offset and elapsed time for trip history.")
         # Subtract elapsed time on the UTC timeline, including for a subset of a capture.

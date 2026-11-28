@@ -6,7 +6,7 @@
 
 The trip overview shows median ECU-estimated crank torque (N·m) and power (kW) when the same paired samples have ECM road speeds of 110–119 km/h within 0.75 s. The count shows how many pairs contributed. These medians describe highway operation, including changes in demand from grade and acceleration. The JSON entry is `highwayCrankOutput`. [Torque calculation](RECORDINGS.md#compare-recordings)
 
-Create `captures/health/health-history.toml`. Use one `[[trip]]` entry per drive. Choose either a full recording or its culled copy for that drive. Capture paths are relative to the manifest. Each recording needs an absolute timestamp with UTC offset and its elapsed time. The report rejects overlapping recordings. `label` and `note` are optional.
+Create `captures/health/health-history.toml`. Use one `[[trip]]` entry per drive. Choose either a full recording or its culled copy for that drive. Capture paths are relative to the manifest. Each recording needs an absolute timestamp with UTC offset and its elapsed time. The report rejects overlapping recordings and recordings with conflicting vehicle codes. For a recording without a code, confirm it came from the same vehicle before adding it. `label` and `note` are optional.
 
 ```toml
 vehicle = "Civic LX 2.0 CVT"

@@ -1,8 +1,11 @@
+import csv
 import json
 import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+import pytest
 
 from cardaq.cli import main
 from cardaq.health import write_health
@@ -138,3 +141,47 @@ class HealthReportTests(unittest.TestCase):
         self.assertEqual(idle[11]["drift"]["status"], "building")
         self.assertEqual(idle[12]["drift"]["status"], "shift")
         self.assertEqual(idle[12]["drift"]["recentMedian"], 760)
+
+
+def write_vehicle_history(folder, identities):
+    manifest = folder / "history.toml"
+    entries = ['vehicle = "Civic"']
+    for day, identity in enumerate(identities, start=1):
+        capture = folder / f"day-{day}.csv"
+        with capture.open("w", encoding="utf-8", newline="") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["timestamp", "elapsed_s", "event", "detail", "ecm_engine_speed_rpm"])
+            writer.writerow([f"2026-11-{day:02}T12:00:00Z", 0, "start", "", ""])
+            if identity is not None:
+                label, code = identity
+                writer.writerow(["", 0, "vehicle", json.dumps({"label": label, "vin_sha256": code}), ""])
+            writer.writerow(["", 1, "reply", "", 700])
+        entries.append(f'[[trip]]\ncapture = "{capture.name}"\ngroup = "Commute"')
+    manifest.write_text("\n".join(entries), encoding="utf-8")
+    return manifest
+
+
+def test_health_accepts_one_vehicle_with_changed_labels_and_unidentified_trips(tmp_path):
+    code = "a" * 64
+    manifest = write_vehicle_history(tmp_path, [None, ("Daily driver", code), ("Unidentified", None), ("Civic", code)])
+    output = tmp_path / "report.json"
+
+    write_health(manifest, output)
+
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["vehicle"] == "Civic"
+    assert len(report["trips"]) == 4
+
+
+def test_health_rejects_different_vehicles_with_the_same_label(tmp_path):
+    first, second = "a" * 64, "b" * 64
+    manifest = write_vehicle_history(tmp_path, [("Civic", first), ("Unidentified", None), ("Civic", second)])
+    output = tmp_path / "report.json"
+    output.write_text("previous report", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Trip 3 belongs to a different vehicle") as error:
+        write_health(manifest, output)
+
+    assert first not in str(error.value)
+    assert second not in str(error.value)
+    assert output.read_text(encoding="utf-8") == "previous report"
