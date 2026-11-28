@@ -38,6 +38,7 @@ uv run --locked --group browser python -m unittest discover -s tests/browser -p 
 | A standard PID already present in historical raw replies | [standard.py](src/cardaq/viewer/standard.py) |
 | A calculated signal, trip total, event, or warm-up milestone | [derived.py](src/cardaq/viewer/derived.py), [trip.py](src/cardaq/viewer/trip.py), [events.py](src/cardaq/viewer/events.py), and [thermal.py](src/cardaq/viewer/thermal.py) |
 | Metric selection, plots, or the offline export | [viewer package](src/cardaq/viewer) and [viewer tests](tests/test_viewer.py) |
+| Sensor wiring, hub circuitry, vehicle power, or instrument bench results | [Hardware drawing index](hardware/README.md), [WireViz sources and rebuild](hardware/wiring/README.md), and [bench checkout](hardware/bench.md) |
 
 For a decoder change, include a small input reply, the responder and request, the expected value and unit, and the source of the mapping. Distinguish independent reference measurements from inferences based on one vehicle. For a derived signal, document how it handles sparse samples and gaps and cover the boundary that matters in its test. Keep existing captures readable when adding CSV fields.
 

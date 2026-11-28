@@ -51,7 +51,17 @@ The derived charts have plain-English guides and links to related traces. An ins
 
 ## Instrumentation and evidence
 
+### Trace a derived OBD signal
+
 - Record source, units, confidence, pairing age, valid coverage, and method with each new signal. Expose decoded samples alongside the raw replies and add a point inspector that opens the input observations and calculation.
 - Track per-request round-trip latency, polling cadence, gaps, duplicate ECM/TCM residuals, and disagreement with a reference tool.
-- Add synchronized GNSS and elevation for matched road segments and climb energy. Add an IMU, brake state, and wheel speeds for grade-aware deceleration, cornering, and wheel-speed residuals.
-- Collect high-rate acceleration or audio and a synchronized RPM reference for order-tracked vibration. [NI order analysis](https://www.ni.com/en/shop/labview/performing-order-analysis-in-labview-with-sound-and-vibration-so.html)
+
+### Acoustic and vibration measurements
+
+For a first Civic comparison, find a repeatable peak in a microphone or accelerometer spectrum and compare its frequency across intervals with similar road speed and different engine RPM. Then check which sensor locations show the same peak. Keep sensor ID, mounting position, accelerometer orientation, microphone gain and sample rate with the run so comparisons are repeatable. [Instrument assignments](../hardware/wiring/cable_schedule.csv) · [Bench checkout](../hardware/bench.md)
+
+OBD RPM and road speed give operating context. For phase comparisons between hubs, measure clock offset and drift using a common vibration at the start and end of the run. For **order tracking** (frequency relative to shaft speed), establish a synchronized RPM reference and verify its cadence and timing uncertainty over the speed changes being studied. A shared capture ID identifies the drive. Sample alignment needs its own measurement. [OBD timestamp fields](RECORDINGS.md#read-the-csv) · [NI order analysis](https://www.ni.com/en/shop/labview/performing-order-analysis-in-labview-with-sound-and-vibration-so.html)
+
+### Other reference measurements
+
+Add synchronized GNSS and elevation for matched road segments and climb energy. Add an IMU, brake state, and wheel speeds for grade-aware deceleration, cornering, and wheel-speed residuals.

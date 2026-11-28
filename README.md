@@ -52,6 +52,12 @@ The offline report shows observed counts from the first trip and builds per-trip
 
 The November 24 review summarizes what the two commutes establish and how to build a pre-service baseline from repeat drives. [Project progress report](docs/changes/0013-progress-review/report.md) · [Next milestones](docs/ROADMAP.md)
 
+## Acoustic and vibration instrumentation
+
+Does a whine rise in pitch with engine RPM or with road speed? The Civic instrumentation project is designed to investigate questions like this by recording sound and vibration alongside OBD data. The proposed rig has ten accelerometers and four microphones across three ESP32 hubs. The hubs would send samples over Wi-Fi to a Raspberry Pi 4B, which would also collect RPM and road speed from the USB OBDLink EX. [System drawing](hardware/system.svg)
+
+CarDAQ records the OBD side today. The sensor harnesses, hub schematic and power drawings are available for bench work. The front hub, with four accelerometers and two microphones, is the first planned assembly. Hub firmware and Pi sensor capture are still development work. [Hardware drawings](hardware/README.md) · [Front hub checkout](hardware/bench.md)
+
 ## Contribute
 
 The contributor guide covers installing the Git hooks, running the offline tests, and tracing a raw reply to a plotted signal. It also describes the evidence that helps verify a new mapping. [Contributing](CONTRIBUTING.md) · [Development roadmap](docs/ROADMAP.md) · [Derived signal roadmap](docs/DERIVED_SIGNALS_ROADMAP.md)

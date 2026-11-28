@@ -46,6 +46,8 @@ The managed sidecar stores the full VIN, its full digest, responding CAN IDs and
 | `health/` | The local comparison manifest and its generated reports |
 | `demo/` | Synthetic quickstart data and reports |
 
+For an instrumentation bench run, keep the original sensor files and notes together in `captures/imports/<bench-run-id>/`. If CarDAQ recorded OBD at the same time, put its capture ID in those notes. Before comparing individual events, document how the sensor clock was aligned to the OBD recorder and the measured timing uncertainty. [Instrumentation bench procedure](../hardware/bench.md)
+
 Each automatically named recording has a sibling `<capture-id>.capture.json` with its identifier, format, UTC times, recorder provenance, and capture status. Completed captures include the stop reason, reply count, and SHA-256 fingerprint for verifying the CSV. A sidecar still marked `recording` means finalization has yet to be recorded. Preserve original CSVs and keep cropped copies separately with a reference to their source. The capture library is Git-ignored. These conventions apply FAIR data practices locally through identifiers, documented formats, and machine-readable provenance. [FAIR Guiding Principles](https://doi.org/10.1038/sdata.201618)
 
 ## Read the CSV
