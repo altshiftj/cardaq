@@ -4,10 +4,10 @@ The next signal work supports three questions. Does preheating change early fuel
 
 ## Available in the viewer
 
-- Decode 12 additional ECM channels from existing raw replies, including fuel flow, airflow, pedal, throttle, load, odometer, fuel trims, and temperatures.
+- Decode additional ECM channels from existing raw replies, including fuel flow, airflow, pedal, throttle, load, odometer, fuel trims, temperatures and the three crank-torque inputs.
 - Plot trip integrals, rolling fuel and revolution ratios, moving fuel-cut candidates, stopped engine-on time and fuel, speed cycling, and air per cylinder intake. Use elapsed time or observed distance as the horizontal axis.
 - Inspect CVT ratio and output-speed change rates, slip as a percentage of RPM, manifold vacuum, coolant sensor difference, and one-minute warming rates. Use the Capture quality group for median diagnostic reply latency.
-- Compare median and middle-half values across speed bands for pulley ratio, RPM, fuel rate, and air per cylinder. Filter by load and inspect the exact band values.
+- Compare median and middle-half values across speed bands for pulley ratio, RPM, fuel rate, air per cylinder, and estimated crank torque and power. Filter by load and inspect the exact band values.
 - Open inferred trip events in the timeline. Compare first-run warm-up milestones in minutes and miles and time spent in each road-speed band. [Trip notebook](changes/0007-trip-notebook/plan.md)
 
 The derived charts have plain-English guides and links to related traces. An inspector that shows the exact input samples behind a selected point is still open. [Chart guide](RECORDINGS.md#compare-recordings)
@@ -37,7 +37,7 @@ The derived charts have plain-English guides and links to related traces. An ins
 | Signal or view | Inputs and verification |
 |---|---|
 | Fuel budget and overrun | Integrate ECU-reported fuel mass. Compare idle, launch, cruise, and lift-off budgets. Use released pedal, a running engine, and sustained reported zero fuel to label candidate fuel cut. |
-| Air charge and demand | Derive air mass per cylinder intake event from MAF and RPM, and manifold vacuum from barometric and manifold pressure. Compare pedal, throttle, engine load, and ratio in steady windows. |
+| Air charge and demand | The air-per-intake calculation uses airflow, RPM and a four-cylinder, four-stroke assumption. For other vehicles, use a verified cylinder count and engine cycle before showing this estimate. When either is unknown, show the measured airflow and RPM. Compare manifold vacuum (barometric minus manifold pressure), pedal, throttle, load and pulley ratio in steady windows. |
 | Mixture behavior | Map fuel trims and purge by load and temperature. Check closed-loop status and equivalence-ratio conventions before comparing commanded and observed mixture. |
 | Crank torque, power, and efficiency | The viewer estimates signed crank torque from indicated, friction, and reference torque and uses RPM to display power in kW or hp. Verify the Civic's changing PID 63 scale against an independent reference before using the absolute values for efficiency. |
 | Exhaust mass balance | Test whether exhaust flow agrees with airflow plus ECU-reported fuel during steady operation. Compare units and determine how independently the ECU estimates each channel. |
@@ -53,8 +53,9 @@ The derived charts have plain-English guides and links to related traces. An ins
 
 ### Trace a derived OBD signal
 
-- Record source, units, confidence, pairing age, valid coverage, and method with each new signal. Expose decoded samples alongside the raw replies and add a point inspector that opens the input observations and calculation.
-- Track per-request round-trip latency, polling cadence, gaps, duplicate ECM/TCM residuals, and disagreement with a reference tool.
+- **Start the point inspector with crank power.** For one selected point, show the raw ECM replies, decoded values and units for reference torque (PID `63`), indicated torque (`62`), friction torque (`8E`) and RPM (`0C`). Show each reply's elapsed time and offset from the reference. A reader should be able to reproduce the displayed kW using `N·m = reference × (indicated % − friction %) / 100` and `kW = N·m × RPM × 2π / 60,000`. [Crank calculation and validation status](changes/0021-crank-output/report.md)
+- **Explain missing points and measure coverage.** For the selected interval, count reference-torque observations, valid torque estimates and valid power estimates. Flag nonpositive references and identify missing inputs or replies outside the 0.5-second pairing window. For example, timely torque inputs with the nearest RPM 0.6 seconds away yield torque only. Compare these counts alongside per-request latency, cadence and gaps before changing the poll schedule.
+- Extend the inspector to a pulley-ratio point with both shaft readings, their timestamps and the confidence in their labels and scale. Track duplicate ECM/TCM residuals and disagreement with a reference tool.
 
 ### Acoustic and vibration measurements
 

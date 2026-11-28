@@ -1,6 +1,6 @@
 # Development roadmap
 
-**The next milestone is a pre-service baseline for one Civic.** Recording, charting and health screening already work. Repeating a few comparable trips now will give later measurements a reference, especially across the planned 5,000-mile service. The November review records what has been demonstrated on the car and what has been tested with synthetic data. [Progress report · November 24, 2026](changes/0013-progress-review/report.md) · [Derived signal roadmap](DERIVED_SIGNALS_ROADMAP.md)
+**Build a history that can answer “Did warm idle change after the Civic’s 5,000-mile service, and which drives support that comparison?”** Collect repeat outbound trips before service and make per-vehicle history the first software milestone. The parked RAV4 check can run in parallel. [Civic progress review](changes/0013-progress-review/report.md) · [Health history guide](HEALTH_HISTORY.md)
 
 ## Now · collect the evidence that has a deadline
 
@@ -10,11 +10,29 @@
 | Selector verification | Record a parked sweep with time-stamped dashboard positions. Return to Drive and repeat the Sport holds. | Compare the settled codes in Honda reply `2322` against the independently observed positions. Document repeatable matches and ambiguous states. Use mixed-mode trip labels until the observations justify finer labels. This experiment tests the selector field only. [Parked procedure](changes/0005-derived-signals/plan.md#parked-shifter-check) |
 | Block-heater comparison | Compare outbound starts with the heater on and off, after similar overnight parking, at similar outdoor temperatures. Keep direction and mode consistent. | For each drive, report starting coolant at both probes, the engine-side dip in the first minute, and fuel consumed over the first two miles. Compare repeated runs with adequate speed and fuel coverage. Record whether heater operation was observed or only scheduled. [Recording guide](RECORDINGS.md) |
 
-## Next · make the growing history useful
+## Development priorities
 
-1. **Show service events and baseline coverage in the health report.** Add optional structured heater, odometer and service information alongside existing notes. Show how many trips qualify for each indicator, where readings are missing, and where a service event falls. Test this with an older manifest, an ineligible drive that adds no vote, and a service marker that preserves the earlier reference. If fluids and tires change together, label that as a combined change. Reassess the longer trend when the first eight and latest five eligible trips can be compared, starting at trip 13. [Current rules](HEALTH_HISTORY.md#spot-gradual-changes)
-2. **Capture the car’s explanation when a counter moves.** Add a read-only snapshot of confirmed, pending and permanent trouble codes, readiness, and available freeze-frame readings (the conditions the car saved with a fault). The decoder should distinguish a valid empty list from an unsupported query or lost reply, keep the original frames, and show which controller answered. Verify with fixtures and a parked read. [Existing diagnostic inventory](changes/0002-pid-sweep/pid-inventory.md)
-3. **Make a suspicious chart point traceable.** Start with a pulley-ratio point. Show the two contributing readings, their timestamps, the calculation and the confidence in the shaft labels. Expose sampling gaps and per-request timing where they affect interpretation. The inspector is ready when a contributor can reproduce the displayed value from saved replies and see why a nearby point is missing. Extend the same metadata into a signal registry as other calculations need it. [Detailed analysis backlog](DERIVED_SIGNALS_ROADMAP.md)
+### 1. Connect recordings to a vehicle’s service history
+
+The recorder now identifies cars across trips. The health report still relies on a hand-written manifest to say which drives belong to a vehicle and comparison group. In the first two-commute review, each drive qualified for nine of fourteen indicators, with only four indicators in common. Let the owner select a car, confirm comparable drives, and assign older captures whose vehicle identity is unknown. [Recording identity](RECORDINGS.md#local-capture-library) · [Observed coverage](changes/0013-progress-review/report.md#what-the-first-two-commutes-can-tell-us)
+
+The first release should show a dated service marker, the eligible drives on each side, and why other drives did not contribute to the selected indicator. Keep the pre-service reference available and record simultaneous fluid and tire changes as one combined event. Check the result with an older manifest and with two cars of the same model. [Proposed service comparison](HEALTH_HISTORY.md#proposed-workflow-for-comparing-trips-across-service)
+
+### 2. Trace a crank-power estimate back to the car
+
+Two Civic observations at 118 km/h used different ECU reference torques, 204 and 185 N·m. Use them as the first worked examples. A reader should be able to select either power estimate, see the four source replies and their timestamps, and reproduce the displayed kW. For a positive reference reading that produced no estimate, identify which input was missing or outside the half-second pairing window. Extend the inspector to the candidate CVT pulley ratio next. [Crank-output findings](changes/0021-crank-output/report.md) · [Inspector and coverage checks](DERIVED_SIGNALS_ROADMAP.md#instrumentation-and-evidence)
+
+### 3. Verify a second vehicle on the road
+
+The 2021 Toyota RAV4 XLE has a recognized VIN pattern and uses standard CAN polling. The recorder and viewer have been tested together with simulated replies. On the RAV4, confirm VIN readback while parked, save the responder inventory, compare RPM with the tachometer and road speed with zero, then record a drive. For each controller, distinguish channels it advertised, channels that returned readings, and channels CarDAQ could decode. Use that inventory to decide which additional signals to support. [First-drive procedure](RECORDINGS.md#first-drive-in-another-vehicle) · [Outstanding hardware checks](changes/0020-standard-capture/checklist.md)
+
+Use verified vehicle details where a calculation needs them. For example, air mass per intake event currently assumes a four-cylinder, four-stroke engine. Check the result on a known engine and show the missing prerequisite when engine configuration is unknown. [Air-per-intake calculation](../src/cardaq/viewer/trip.py)
+
+### 4. Browse a year of recordings
+
+On November 27, 2026, `cardaq serve` generated 5.85 MiB of HTML for the four recordings in the local library. The server caches unchanged CSVs, but the page embeds traces for every decoded drive. Open the library with a list by vehicle and date, then load traces for the selected drives. Keep `cardaq view` as the portable, self-contained comparison. [Folder server](../src/cardaq/viewer/live.py) · [Recording guide](RECORDINGS.md#compare-recordings)
+
+Benchmark with a year of synthetic commute-length recordings. Measure time and bytes to open the list, compare two drives, and refresh after an active recording grows. Adding unselected drives should grow the list without adding their trace data to the response.
 
 ## Civic instrumentation
 
@@ -22,9 +40,9 @@ The acoustic and vibration rig can progress on the bench while the OBD recorder 
 
 For a first combined vehicle run, verify the OBDLink EX on the Pi under Linux, check recording continuity through engine start, and confirm the Pi closes its SSD recording before power is cut at key-off. Keep the instrument run and OBD capture linked so the same event can be examined in both. [Power checkout](../hardware/bench.md#qualify-the-two-vehicle-power-paths-on-the-bench) · [Acoustic and vibration analysis](DERIVED_SIGNALS_ROADMAP.md#acoustic-and-vibration-measurements)
 
-## In parallel · prepare the contributor snapshot
+## Diagnostic follow-up
 
-Review and group the outstanding working-tree changes into shareable commits, using synthetic recordings for public examples. Verify the documented demo, installed-wheel tests and hooks from a fresh checkout and confirm the hosted Windows and Linux workflow runs. Local packaging and real Git-hook smoke tests already provide a starting point. [Contributor setup](../CONTRIBUTING.md) · [Packaging evidence](changes/0008-project-housekeeping/checklist.md) · [Hook verification](changes/0012-pre-commit/checklist.md)
+When a cylinder counter rises, link it to a read-only snapshot of confirmed, pending and permanent trouble codes, readiness, and available freeze-frame readings (the conditions the car saved with a fault). Distinguish a valid empty list from an unsupported query or lost reply, keep the original frames, and show which controller answered. Verify with fixtures and a parked read. [Existing diagnostic inventory](changes/0002-pid-sweep/pid-inventory.md)
 
 ## Serial foundation
 

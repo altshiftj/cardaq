@@ -17,6 +17,8 @@ Use `sweep` to see which standard Mode 01 parameter identifiers (PIDs) each elec
 
 The standard profile discovers 11-bit or 29-bit ISO 15765-4 CAN and repeats discovery after a reconnect. Each `inventory` row maps response IDs to supported PIDs. Each pass reads advertised RPM, speed and torque channels together so their timestamps are close. A `reply` row preserves the addressed frames, including signals that await a decoder. The viewer decodes selected standard signals from conventional engine responders `7E8` and `18DAF110`. Availability of Toyota-specific transmission and AWD data requires separate verification.
 
+The 2021 RAV4 XLE still needs its first physical check. Compare the VIN in the parked capture’s local `.capture.json` with the vehicle. For each controller, use the `inventory` rows to list what it advertised, the `reply` rows to see what it returned, and the viewer to check which values it decoded. Record the dashboard RPM and the elapsed time of that observation so the parked comparison can be repeated from the CSV. [RAV4 verification checklist](changes/0020-standard-capture/checklist.md) · [VIN verification checklist](changes/0022-vehicle-identity/checklist.md)
+
 ## Start and finish a capture
 
 ```sh

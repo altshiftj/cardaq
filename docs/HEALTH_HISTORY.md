@@ -60,3 +60,11 @@ A single unusual measurement can earn a watch while the five-trip median stays s
 ## Next evidence to collect
 
 Track which cylinders accumulate counts across completed cycles. Add read-only snapshots of confirmed, pending and permanent DTCs, readiness status and freeze frames. Verify the selector byte against observed D/S changes and the converter against a known lock-up command. Record ambient temperature and relevant maintenance so later shifts in the history have a date and context. [Civic PID inventory](changes/0002-pid-sweep/pid-inventory.md) · [Derived signal roadmap](DERIVED_SIGNALS_ROADMAP.md)
+
+## Proposed workflow for comparing trips across service
+
+Today, the recorder saves a vehicle code when it can read the VIN. The health report uses the vehicle label and trip groups you enter in the manifest. The proposed workflow would use the saved code to help select recordings for a service comparison. [Recording guide](RECORDINGS.md) · [Development roadmap](ROADMAP.md)
+
+1. Select the car by its vehicle code and review its recordings. Assign older or unidentified recordings to the car explicitly. Choose comparable trips, such as outbound drives in D, and record relevant conditions such as outside temperature and whether heater use was observed or only scheduled.
+2. Mark the service date, odometer and work performed. If the oil, transmission fluid and tires all change at the same visit, keep them together so the report shows what changed at that boundary.
+3. Open an indicator such as warm stopped RPM. See which trips qualified on either side of service and why others were excluded. Keep the pre-service measurements available as a reference as later drives accumulate.

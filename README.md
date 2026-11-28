@@ -50,7 +50,7 @@ uv run --locked cardaq health captures/health/health-history.toml
 
 The offline report shows observed counts from the first trip and builds per-trip references as comparable drives accumulate. A JSON export is also available. [Manifest example and interpretation guide](docs/HEALTH_HISTORY.md)
 
-The November 24 review summarizes what the two commutes establish and how to build a pre-service baseline from repeat drives. [Project progress report](docs/changes/0013-progress-review/report.md) · [Next milestones](docs/ROADMAP.md)
+The next milestone is to compare warm idle across the Civic’s 5,000-mile service and show which drives qualify on each side. Collect comparable pre-service drives now using the manifest above. The roadmap also covers tracing a crank-power point to its raw replies, verifying a first RAV4 drive, and browsing longer recording histories. [Development priorities](docs/ROADMAP.md#development-priorities) · [Findings from the first two commutes](docs/changes/0013-progress-review/report.md)
 
 ## Acoustic and vibration instrumentation
 
