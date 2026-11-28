@@ -1,0 +1,42 @@
+graph direct_bus {
+    graph [rankdir=LR, pad=0.22, nodesep=0.38, ranksep=0.85, bgcolor="white",
+        fontname="Arial", fontcolor="#173746", fontsize=18, labelloc=t, labeljust=l,
+        label="Standard hub  /  Direct SPI bench variant  ·  Rev. 0.4\lPower down, leave U2 unpopulated and fit the eight straps shown.\lEach port keeps its own chip select on contact 4.\l"];
+    node [fontname="Arial", fontsize=13, shape=plain, fontcolor="#172f45"];
+    edge [penwidth=1.6];
+
+    sck [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="8" COLOR="#3f7289">
+          <TR><TD BGCOLOR="#dceaf0"><B>Clock  /  SCK</B></TD></TR>
+          <TR><TD>ESP32 GPIO18 (R07)<BR/>U2 terminal <B>13</B></TD></TR>
+        </TABLE>>];
+    sdio [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="8" COLOR="#48806d">
+          <TR><TD BGCOLOR="#deeee5"><B>Bidirectional data  /  SDIO</B></TD></TR>
+          <TR><TD>ESP32 GPIO23 (R01)<BR/>U2 terminal <B>3</B></TD></TR>
+        </TABLE>>];
+
+    branches [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="7" COLOR="#8396a2">
+          <TR><TD BGCOLOR="#dae6ec"><B>U2 terminal</B></TD><TD BGCOLOR="#dae6ec"><B>Series part</B></TD><TD BGCOLOR="#dae6ec"><B>Hub port / contact</B></TD></TR>
+          <TR><TD PORT="sck1" BGCOLOR="#edf4f8">12</TD><TD>R101</TD><TD>J1 pin 2  ·  SCK</TD></TR>
+          <TR><TD PORT="sck2" BGCOLOR="#edf4f8">14</TD><TD>R201</TD><TD>J2 pin 2  ·  SCK</TD></TR>
+          <TR><TD PORT="sck3" BGCOLOR="#edf4f8">15</TD><TD>R301</TD><TD>J3 pin 2  ·  SCK</TD></TR>
+          <TR><TD PORT="sck4" BGCOLOR="#edf4f8">11</TD><TD>R401</TD><TD>J4 pin 2  ·  SCK</TD></TR>
+          <TR><TD PORT="sdio1" BGCOLOR="#eef7f0">1</TD><TD>R102</TD><TD>J1 pin 6  ·  SDIO</TD></TR>
+          <TR><TD PORT="sdio2" BGCOLOR="#eef7f0">5</TD><TD>R202</TD><TD>J2 pin 6  ·  SDIO</TD></TR>
+          <TR><TD PORT="sdio3" BGCOLOR="#eef7f0">2</TD><TD>R302</TD><TD>J3 pin 6  ·  SDIO</TD></TR>
+          <TR><TD PORT="sdio4" BGCOLOR="#eef7f0">4</TD><TD>R402</TD><TD>J4 pin 6  ·  SDIO</TD></TR>
+        </TABLE>>];
+
+    {rank=same; sck; sdio;}
+    sck -- sdio [style=invis];
+    sck:e -- branches:sck1:w [color="#316681"];
+    sck:e -- branches:sck2:w [color="#316681"];
+    sck:e -- branches:sck3:w [color="#316681"];
+    sck:e -- branches:sck4:w [color="#316681"];
+    sdio:e -- branches:sdio1:w [color="#33735c"];
+    sdio:e -- branches:sdio2:w [color="#33735c"];
+    sdio:e -- branches:sdio3:w [color="#33735c"];
+    sdio:e -- branches:sdio4:w [color="#33735c"];
+}
