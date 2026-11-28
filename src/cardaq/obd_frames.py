@@ -1,6 +1,7 @@
-"""Decode single-frame Service 01 replies from OBDLink's CAN text output."""
+"""Read classic CAN frames and OBD replies from OBDLink's text output."""
 
 import re
+from collections.abc import Iterable
 
 
 _HEX = re.compile(rb"[0-9A-F]+")
@@ -15,14 +16,14 @@ def pid_bitmaps(
     bare_prefix = prefix.hex().upper().encode("ascii")
     replies: list[tuple[str | None, int]] = []
     for line in lines:
-        compact = _compact_hex(line)
+        compact = compact_hex(line)
         if compact is None:
             continue
         if len(compact) == 12 and compact.startswith(bare_prefix):
             replies.append((None, int(compact[4:], 16)))
             continue
 
-        frame = _single_frame(compact, address_width)
+        frame = single_frame(compact, address_width)
         if frame is not None:
             address, payload = frame
             if len(payload) == 6 and payload.startswith(prefix):
@@ -36,10 +37,10 @@ def coolant_temperatures(
     """Return PID 0x67 temperatures in Celsius for supported sensors."""
     readings = []
     for line in lines:
-        compact = _compact_hex(line)
+        compact = compact_hex(line)
         if compact is None:
             continue
-        frame = _single_frame(compact, address_width)
+        frame = single_frame(compact, address_width)
         if frame is None:
             continue
 
@@ -52,12 +53,14 @@ def coolant_temperatures(
     return tuple(readings)
 
 
-def _compact_hex(line: bytes) -> bytes | None:
+def compact_hex(line: bytes) -> bytes | None:
+    """Return uppercase hex digits from a spaced or compact adapter line."""
     compact = b"".join(line.split()).upper()
     return compact if _HEX.fullmatch(compact) else None
 
 
-def _can_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | None:
+def can_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | None:
+    """Read the CAN address and frame bytes from a compact_hex result."""
     address = compact[:address_width]
     frame_hex = compact[address_width:]
     if len(frame_hex) < 4:
@@ -77,8 +80,22 @@ def _can_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | None:
     return address.decode("ascii"), bytes.fromhex(frame_hex.decode("ascii"))
 
 
-def _single_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | None:
-    parsed = _can_frame(compact, address_width)
+def responder_frames(lines: Iterable[bytes], address: bytes) -> list[bytes]:
+    """Collect one responder's hex frames, rejecting bad frame lengths anywhere in its sequence."""
+    frames = []
+    for line in lines:
+        compact = compact_hex(line)
+        if compact is None or not compact.startswith(address):
+            continue
+        parsed = can_frame(compact, len(address))
+        if parsed is None:
+            return []
+        frames.append(parsed[1])
+    return frames
+
+
+def single_frame(compact: bytes, address_width: int) -> tuple[str, bytes] | None:
+    parsed = can_frame(compact, address_width)
     if parsed is None:
         return None
     address, frame = parsed
@@ -97,8 +114,8 @@ def has_pid_reply(lines: tuple[bytes, ...], pid: int, addresses: set[str], width
     """Recognize a positive Mode 01 single frame or first frame from an advertising ECU."""
     prefix = bytes((0x41, pid))
     for line in lines:
-        compact = _compact_hex(line)
-        parsed = _can_frame(compact, width) if compact else None
+        compact = compact_hex(line)
+        parsed = can_frame(compact, width) if compact else None
         if parsed is None or parsed[0] not in addresses:
             continue
         frame = parsed[1]

@@ -119,13 +119,15 @@ class ViewerTests(unittest.TestCase):
             "18 DA F1 1E 22 00 00 00 00 00 00 00 | 18 DA F1 1E 23 1B 00 14 00 00 00 30 | "
             "18 DA F1 1E 24 00 00 64 00 A1 05 00 | 18 DA F1 1E 25 3B 00 83 FC EA 55 55"
         )
+        reply_with_dlc = reply.replace("18 DA F1 1E ", "18DAF11E 8 ")
         capture = self.capture(
             "shifter.csv",
             f"elapsed_s,request,reply,{SPEED}\n"
             f"1.4,222322,{reply},0\n"
-            f"2.8,222322,{reply.replace('00 00 00 30', '00 00 00 78')},\n"
+            f"2.8,222322,{reply_with_dlc.replace('00 00 00 30', '00 00 00 78')},\n"
             f"4.2,222322,{reply.replace('62 23 22', '62 23 01')},\n"
-            "5.6,222322,NO DATA,\n",
+            "5.6,222322,NO DATA,\n"
+            f"7.0,222322,{reply} | 18DAF11E 8 21 00,\n",
         )
 
         write_viewer([capture], self.output)

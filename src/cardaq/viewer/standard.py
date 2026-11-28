@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from ..obd_frames import ENGINE_RESPONSE_IDS, _can_frame, _compact_hex, single_frame_payload
+from ..obd_frames import ENGINE_RESPONSE_IDS, can_frame, compact_hex, single_frame_payload
 
 
 _ECM_IDS = tuple(address.encode("ascii") for address in ENGINE_RESPONSE_IDS.values())
@@ -156,14 +156,14 @@ def standard_observations(request: str, reply: str) -> dict[str, int | float]:
     compact_lines = [
         compact
         for line in reply.split("|")
-        if (compact := _compact_hex(line.encode())) is not None and compact.startswith(_ECM_IDS)
+        if (compact := compact_hex(line.encode())) is not None and compact.startswith(_ECM_IDS)
     ]
     if not compact_lines:
         return {}
     address = next(prefix for prefix in _ECM_IDS if compact_lines[0].startswith(prefix))
     frames = []
     for compact in compact_lines:
-        frame = _can_frame(compact, len(address))
+        frame = can_frame(compact, len(address))
         if frame is None or not compact.startswith(address):
             continue
         frames.append(frame[1])

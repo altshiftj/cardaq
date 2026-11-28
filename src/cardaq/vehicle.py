@@ -7,7 +7,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from .obd_frames import _can_frame, _compact_hex
+from .obd_frames import can_frame, compact_hex
 
 
 _VIN = re.compile(r"[A-HJ-NPR-Z0-9]{17}")
@@ -80,8 +80,8 @@ def _vin_from_frames(frames: list[bytes]) -> str | None:
 def identify_vehicle(lines: tuple[bytes, ...], width: int, profiles: dict[str, tuple[str, str]]) -> Vehicle:
     frames: dict[str, list[bytes]] = defaultdict(list)
     for line in lines:
-        compact = _compact_hex(line)
-        parsed = _can_frame(compact, width) if compact else None
+        compact = compact_hex(line)
+        parsed = can_frame(compact, width) if compact else None
         if parsed:
             address, frame = parsed
             frames[address].append(frame)

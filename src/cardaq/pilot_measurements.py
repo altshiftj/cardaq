@@ -1,7 +1,7 @@
 """Decode selected measurements from the Civic pilot's raw diagnostic replies."""
 
 from .honda_fields import HONDA_FIELDS
-from .obd_frames import ENGINE_RESPONSE_IDS, _compact_hex, _single_frame, coolant_temperatures
+from .obd_frames import ENGINE_RESPONSE_IDS, compact_hex, coolant_temperatures, responder_frames, single_frame
 
 
 _ECUS = {"18DAF110": "ecm", "18DAF11E": "tcm"}
@@ -31,7 +31,7 @@ def pilot_measurements(
     command: bytes, reply: tuple[bytes, ...], *, standard_width: int | None = None,
 ) -> dict[str, int | float]:
     """Return usable values for known requests, leaving other data in the raw reply."""
-    command = _compact_hex(command)
+    command = compact_hex(command)
     width = standard_width or 8
     ecus = _ECUS if standard_width is None else {ENGINE_RESPONSE_IDS[width]: "ecm"}
     if command == b"0167":
@@ -47,8 +47,8 @@ def pilot_measurements(
         prefix = b"\x41" + bytes.fromhex(command[2:].decode("ascii"))
         values = {}
         for line in reply:
-            compact = _compact_hex(line)
-            frame = _single_frame(compact, width) if compact else None
+            compact = compact_hex(line)
+            frame = single_frame(compact, width) if compact else None
             if frame is None:
                 continue
             address, payload = frame
@@ -79,22 +79,7 @@ def _honda_data(command: bytes, reply: tuple[bytes, ...]) -> bytes | None:
 
 
 def _honda_payload(lines: tuple[bytes, ...]) -> bytes | None:
-    frames = []
-    for line in lines:
-        compact = _compact_hex(line)
-        if not compact or not compact.startswith(b"18DAF11E"):
-            continue
-        frame_hex = compact[8:]
-        # When ATD1 is enabled the adapter inserts a DLC digit before each frame.
-        if len(frame_hex) % 2:
-            dlc = int(frame_hex[:1], 16)
-            frame_hex = frame_hex[1:]
-            if len(frame_hex) != 2 * dlc:
-                return None
-        if not 4 <= len(frame_hex) <= 16:
-            return None
-        frames.append(bytes.fromhex(frame_hex.decode("ascii")))
-
+    frames = responder_frames(lines, b"18DAF11E")
     # These two Honda identifiers return 39 application bytes in six classic CAN frames.
     if len(frames) != 6 or frames[0][:2] != b"\x10\x27":
         return None

@@ -1,6 +1,6 @@
 """Read ECM fuel-system status, MIL status and per-cylinder monitor snapshots."""
 
-from .obd_frames import _compact_hex, _single_frame
+from .obd_frames import responder_frames, single_frame_payload
 
 
 _ECM = b"18DAF110"
@@ -9,19 +9,10 @@ _COUNT_TESTS = {0x0B: "weighted", 0x0C: "cycle"}
 
 
 def _multiframe(frames: list[bytes]) -> bytes | None:
-    """Assemble one classic CAN ISO-TP response, accepting optional ELM DLCs."""
+    """Assemble one classic CAN ISO-TP response."""
     payload = bytearray()
     length = 0
-    for index, line in enumerate(frames):
-        frame_hex = line[len(_ECM):]
-        if len(frame_hex) % 2:
-            dlc = int(frame_hex[:1], 16)
-            frame_hex = frame_hex[1:]
-            if 2 * dlc != len(frame_hex):
-                return None
-        if not 4 <= len(frame_hex) <= 16:
-            return None
-        frame = bytes.fromhex(frame_hex.decode("ascii"))
+    for index, frame in enumerate(frames):
         if index == 0:
             if len(frame) != 8 or frame[0] >> 4 != 1:
                 return None
@@ -44,16 +35,12 @@ def diagnostic_observations(request: str, reply: str) -> dict[str, int]:
     mid = _CYLINDERS.get(command)
     if mid is None and command not in ("0101", "0103"):
         return {}
-    frames = [
-        compact for line in reply.split("|")
-        if (compact := _compact_hex(line.encode())) is not None and compact.startswith(_ECM)
-    ]
+    frames = responder_frames(reply.encode().split(b"|"), _ECM)
     if not frames:
         return {}
     if mid is None:
-        if len(frames) != 1 or (frame := _single_frame(frames[0], len(_ECM))) is None:
+        if len(frames) != 1 or (payload := single_frame_payload(frames[0])) is None:
             return {}
-        payload = frame[1]
         if command == "0103" and len(payload) == 4 and payload[:2] == b"\x41\x03":
             return {"ecm_fuel_system_1_status": payload[2]}
         if command == "0101" and len(payload) == 6 and payload[:2] == b"\x41\x01":
