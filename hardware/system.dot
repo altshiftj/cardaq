@@ -1,0 +1,29 @@
+digraph civic_instruments {
+    graph [
+        rankdir=LR, bgcolor="white", pad=0.25, nodesep=0.27, ranksep=0.75,
+        fontname="Arial", fontsize=19, fontcolor="#172F45",
+        labelloc=t, labeljust=l,
+        label="Civic instrument data paths   |   Rev. 0.3\l"
+    ];
+    node [
+        shape=box, style="rounded,filled", fontname="Arial", fontsize=12,
+        margin="0.16,0.10", color="#7C96A4", fillcolor="#F4F7F8",
+        fontcolor="#172F45", penwidth=1.2
+    ];
+    edge [fontname="Arial", fontsize=10, color="#416978", fontcolor="#294A58", arrowsize=0.72];
+
+    front [label="HUB-F   ·   Front\l4 accelerometers + 2 microphones\l"];
+    cabin [label="HUB-C   ·   Cabin\l2 accelerometers + 1 microphone\l"];
+    rear [label="HUB-R   ·   Rear\l4 accelerometers + 1 microphone\l"];
+    adapter [label="OBDLink EX\lHonda diagnostic socket\l", fillcolor="#FAF6F0", color="#A88D68"];
+    pi [
+        label="Raspberry Pi 4B\lPrivate 2.4 GHz access point\lProposed in-car recorder\l",
+        fillcolor="#DDEDE9", color="#3E776C", penwidth=1.6
+    ];
+    { rank=same; front; cabin; rear; adapter; }
+    front -> cabin -> rear -> adapter [style=invis];
+    front -> pi [style=dashed, label="  Wi-Fi / TCP  "];
+    cabin -> pi [style=dashed, label="  Wi-Fi / TCP  "];
+    rear -> pi [style=dashed, label="  Wi-Fi / TCP  "];
+    adapter -> pi [label="  USB  ", color="#80663F"];
+}

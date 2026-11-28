@@ -1,0 +1,7 @@
+# External instrumentation drawings
+
+CarDAQ's [signal roadmap](../../DERIVED_SIGNALS_ROADMAP.md#instrumentation-and-evidence) calls for high-rate vibration or audio with an RPM reference. The supplied *2020 Honda Civic — Distributed Instrumentation System*, Rev. 0.3, proposes ten ADXL345 breakouts, four MAX4466 breakouts and three interchangeable ESP32 hubs. The repo previously had OBD recording and timing documentation but no editable drawings for this rig.
+
+The front hub exercises all six sensor ports and the longest proposed sensor leads. A physical cable drawing needs to identify each conductor, including the four separate accelerometer returns. A circuit schematic needs to show where those returns meet and how the microphone divider feeds the ADC. Both views need the same port IDs.
+
+The owner subsequently supplied the home AQI board pinout, module note and Espressif datasheet. These establish an ESP32-WROOM-32 on a 2 × 15 carrier and identify the contacts used by this rig. The carrier power circuit and breakout variants, permanent connectors, measured cable lengths, vehicle power connections and clock alignment are open. The 8P8C pinout uses all eight positions for the three-wire SPI trial. Changing to four-wire SPI or carrying a data-ready interrupt would affect the harness. Electrical, timing and installation validation require physical equipment. [Header map and sources](../../../hardware/esp32-header.md)
