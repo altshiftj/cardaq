@@ -1,0 +1,51 @@
+digraph civic_power {
+    graph [
+        rankdir=TB, newrank=true, bgcolor="white", pad=0.25, nodesep=0.42, ranksep=0.35,
+        fontname="Arial", fontsize=20, fontcolor="#172F45", labelloc=t, labeljust=l,
+        label="Civic instrumentation power   |   Rev. 0.6\lSelect a converter or PS1 to open its wiring drawing.\l"
+    ];
+    node [
+        shape=box, style="rounded,filled", fillcolor="#F4F7F8", color="#869DA7",
+        fontname="Arial", fontcolor="#172F45", fontsize=12, penwidth=1.15, margin="0.18,0.13"
+    ];
+    edge [arrowsize=0.7, penwidth=1.35, fontname="Arial", fontsize=11, color="#546B78", fontcolor="#324A59"];
+
+    vehicle [label="Vehicle   ·   nominal 12 V\lFused constant battery feed, switched ACC sense and chassis return\lCivic taps, upstream protection ratings and ground locations TBD\l"];
+    subgraph cluster_pi {
+        label="Recorder supply"; fontsize=15; color="#A8BBCB"; fontcolor="#315976"; margin=15;
+        pi_supply [group="pi", URL="wiring/generated/pi-power.svg", tooltip="Open the Mini-Box and Raspberry Pi wiring drawing", fillcolor="#E9F1F8", color="#6993B1", label=<
+            <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+            <TR><TD ALIGN="LEFT"><B>Mini-Box PWR-DCDC-USB</B></TD></TR>
+            <TR><TD ALIGN="LEFT">Left Mini-Fit Jr input</TD></TR>
+            <TR><TD ALIGN="LEFT">Red VIN · white IGN · black GND</TD></TR>
+            <TR><TD ALIGN="LEFT">Right Mini-Fit Jr output</TD></TR>
+            <TR><TD ALIGN="LEFT">Yellow VOUT · GND return</TD></TR>
+            <TR><TD ALIGN="LEFT"><B>Factory 12 V · select and meter 5 V</B></TD></TR>
+            </TABLE>>];
+        pi_link [group="pi", label="USB-C power lead / source interface   ·   TBD\lQualify polarity and 5 V at the plug under 3 A load.\l"];
+        pi [group="pi", fillcolor="#E9F1F8", label="Raspberry Pi 4B   ·   USB-C power input\lInclude SSD load and verify shutdown before cutoff.\l"];
+        pi_supply -> pi_link [label="  Regulated VOUT + return  "];
+        pi_link -> pi;
+    }
+    subgraph cluster_hub {
+        label="Hub supply"; labeljust=r; fontsize=15; color="#A9C7BD"; fontcolor="#306554"; margin=15;
+        hk4 [group="hub", URL="wiring/generated/hk4-hub-power.svg", tooltip="Open the VIOFO HK4 wiring drawing", color="#699B88", fillcolor="#EBF4EF", label=<
+            <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2">
+            <TR><TD ALIGN="LEFT"><B>VIOFO HK4 hardwire kit</B></TD></TR>
+            <TR><TD ALIGN="LEFT">12–24 V input leads</TD></TR>
+            <TR><TD ALIGN="LEFT">Red BAT · yellow ACC · black GND</TD></TR>
+            <TR><TD ALIGN="LEFT">Captive right-angle USB-C output</TD></TR>
+            <TR><TD ALIGN="LEFT"><B>5 V · 2 A total for all hubs</B></TD></TR>
+            </TABLE>>];
+        hk4_mate [group="hub", label="USB-C receptacle adapter   ·   TBD\lMate for the HK4 captive plug\l"];
+        fanout [group="hub", URL="wiring/generated/power.svg", tooltip="Open the PS1 branch wiring drawing", label="PS1   ·   proposed fused distribution block\l5V-IN feeds the branch fuses. RTN-IN feeds the return bus.\l"];
+        hubs [group="hub", fillcolor="#EBF4EF", label="P01 → HUB-F      P02 → HUB-C      P03 → HUB-R\lEach branch carries regulated 5 V and its return.\l"];
+        hk4 -> hk4_mate;
+        hk4_mate -> fanout [label="  5 V feed + return  "];
+        fanout -> hubs;
+    }
+    { rank=same; pi_supply; hk4; }
+    { rank=same; pi_link; hk4_mate; }
+    vehicle -> pi_supply;
+    vehicle -> hk4;
+}

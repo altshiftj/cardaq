@@ -1,0 +1,12 @@
+item,quantity,unit,purchase_allowance_ft,references,notes
+"Shielded stranded copper Cat6, four twisted pairs, 23–26 AWG",59,ft,75,W101 W102 W103 W104 W105 W106 W107 W108 W109 W110,Length allowance
+Passive 8P8C · non-Ethernet,12,interface,,HUB-F J1 / HUB-F J2 / HUB-F J3 / HUB-F J4 / HUB-C J1 / HUB-C J2 / HUB-R J1 / HUB-R J2 / HUB-R J3 / HUB-R J4 / HUB-C J3 / HUB-C J4,Mating hardware TBD
+Passive 8P8C · ADXL345,10,interface,,ACC-01 / ACC-02 / ACC-03 / ACC-04 / ACC-05 / ACC-06 / ACC-07 / ACC-08 / ACC-09 / ACC-10,Mating hardware TBD
+"Shielded stranded instrumentation pair cable, two twisted pairs, 22–26 AWG",24,ft,30,W201 W202 W203 W204,Length allowance
+Four-pin microphone port · housing TBD,6,interface,,HUB-F J5 / HUB-F J6 / HUB-C J5 / HUB-R J5 / HUB-C J6 / HUB-R J6,Mating hardware TBD
+MAX4466 · functional terminals,4,interface,,MIC-01 / MIC-02 / MIC-03 / MIC-04,Mating hardware TBD
+"Automotive stranded copper duplex, 18 AWG, red and black",30,ft,40,P01 P02 P03,Length allowance
+Proposed fused 5 V fanout,1,interface,,PS1,Mating hardware TBD
+Hub power · housing TBD,3,interface,,HUB-F PWR / HUB-C PWR / HUB-R PWR,Mating hardware TBD
+VIOFO HK4 hardwire kit,1,each,,PS1,Owned · Right-angle USB-C plug · 5 V / 2 A total
+PS1 branch fuse,3,each,,P01 P02 P03,1 A proposed. Type and final rating TBD

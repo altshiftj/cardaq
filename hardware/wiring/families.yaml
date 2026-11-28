@@ -1,0 +1,65 @@
+# Sensor interfaces Rev 0.3. Hub power distribution Rev 0.6.
+# "pins" at the microphone breakout and on power branches denote functions.
+CBL-A:
+  hub_ports: [J1, J2, J3, J4]
+  stock: Shielded stranded copper Cat6, four twisted pairs, 23–26 AWG
+  allowance_ft: 75
+  cable:
+    type: CBL-A · Cat6 · 23–26 AWG
+    colors: [WHOG, OG, WHGN, BU, WHBU, GN, WHBN, BN]
+    wirelabels: [SCK return, SCK, SDIO return, CS, CS return, SDIO, supply return, 3V3]
+    shield: true
+    notes: Shield to hub only · sensor end insulated
+  source:
+    type: Passive 8P8C · non-Ethernet
+    pins: [1, 2, 3, 4, 5, 6, 7, 8, SH]
+    show_pincount: false
+    pinlabels: [GND, SPI_SCK, GND, SPI_CS, GND, SPI_SDIO, GND, +3V3, shield landing]
+  destination:
+    type: Passive 8P8C · ADXL345
+    pins: [1, 2, 3, 4, 5, 6, 7, 8]
+    pinlabels: [GND, SCL, GND, CS, GND, SDA, GND, VCC]
+    show_pincount: false
+  shield_source: SH
+CBL-M:
+  hub_ports: [J5, J6]
+  stock: Shielded stranded instrumentation pair cable, two twisted pairs, 22–26 AWG
+  allowance_ft: 30
+  cable:
+    type: CBL-M · two pairs · 22–26 AWG
+    wirecount: 4
+    wirelabels: [audio, audio return, 3V3, supply return]
+    shield: true
+    notes: Core colors and shield landing TBD
+  source:
+    type: Four-pin microphone port · housing TBD
+    pins: [1, 2, 3, 4]
+    pinlabels: [Analog OUT, Signal GND, +3V3, Power GND]
+    show_pincount: false
+  destination:
+    type: MAX4466 · functional terminals
+    pins: [OUT, SIG-RTN, VCC, PWR-RTN]
+    pinlabels: [Analog OUT, GND, +3V3, GND]
+    show_pincount: false
+CBL-P:
+  stock: Automotive stranded copper duplex, 18 AWG, red and black
+  allowance_ft: 40
+  branch_fuse_a: 1  # Proposed rating for each positive branch at PS1.
+  supply:
+    name: VIOFO HK4
+    output: Right-angle USB-C plug
+    rating: 5 V / 2 A total
+  cable:
+    type: CBL-P · automotive duplex
+    gauge: 18 AWG
+    colors: [RD, BK]
+  source:
+    type: Proposed fused 5 V fanout
+    pins: [5V, RTN]
+    pinlabels: [5 V bus via branch fuse, Common return bus]
+    show_pincount: false
+  destination:
+    type: Hub power · housing TBD
+    pins: [5V, RTN]
+    pinlabels: [PWR1 + to VIN (L15), PWR1 − to GND (L14 and R14)]
+    show_pincount: false

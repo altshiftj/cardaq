@@ -44,4 +44,5 @@ browser = [
 ]
 dev = [
     "pre-commit==4.7.0",
+    "wireviz>=0.4.1",
 ]

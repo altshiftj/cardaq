@@ -1,0 +1,98 @@
+# VIOFO HK4 Hardwire Kit English Manual, pp. 2–3 (hardware/docs).
+# Terminal IDs below are electrical functions. The cable is kept intact.
+# The separate power.svg sheet defines the harness downstream of PS1.
+metadata:
+  title: VIOFO HK4 / ESP32 hub supply
+  revision: '0.6'
+options:
+  fontname: Arial
+  color_mode: full
+  mini_bom_mode: false
+tweak:
+  override:
+    graph:
+      labelloc: t
+      labeljust: l
+      fontsize: '17'
+      pad: '0.26'
+      nodesep: '0.32'
+      ranksep: '0.36'
+      pack: '20'
+      packmode: array_cu1
+  append: |
+    graph [fontcolor="#172f45", label="VIOFO HK4  /  ESP32 hub supply\lRev 0.6   ·   2020 Honda Civic   ·   Proposed installation\l"];
+    subgraph cluster_input {
+      graph [label="Vehicle supply   /   12 V", labelloc=t, labeljust=l, sortv=1,
+             color="#8fabbc", fontcolor="#315976", fontsize=15, margin=14];
+      "Civic"; "HK4 input leads"; "HK4";
+    }
+    subgraph cluster_output {
+      graph [label="Regulated output   /   5 V", labelloc=t, labeljust=l, sortv=2,
+             color="#88a89d", fontcolor="#30584c", fontsize=15, margin=14];
+      "HK4 output plug"; "USB-C mate"; "PS1 input leads"; "PS1";
+    }
+    "HK4" [URL="../../docs/HK4%20Hardwire%20Kit%20English%20Manual.pdf#page=2", tooltip="Open the VIOFO HK4 manual"];
+    "PS1" [URL="power.svg", tooltip="Open the P01–P03 branch wiring drawing"];
+
+connectors:
+  Civic:
+    type: Vehicle-side terminations
+    pins: [BAT, ACC, CHASSIS]
+    show_pincount: false
+    notes: "Tap slots, fuse ratings and\nground point to be identified."
+    bgcolor_title: '#dce8f2'
+  HK4:
+    type: Owned converter · 12–24 V DC
+    pins: [BAT, ACC, GND]
+    show_pincount: false
+    notes: "12 V cutoff selector (V)\n11.8 / 12.0 / 12.2 / 12.4\nOutput can stay live after key-off."
+    bgcolor_title: '#dce8f2'
+  HK4 output plug:
+    type: Factory right-angle USB-C plug
+    pins: [VBUS, GND]
+    pinlabels: [Regulated +5 V, Output return]
+    show_pincount: false
+    notes: "Intact 3 m lead with ferrite\n2 A total for all three hubs"
+    bgcolor_title: '#dce8f2'
+  USB-C mate:
+    type: Proposed receptacle adapter
+    pins: [VBUS, GND]
+    show_pincount: false
+    notes: "Select the adapter. Verify\npolarity and voltage under load."
+    bgcolor_title: '#ddeddf'
+  PS1:
+    type: Proposed fused fanout
+    pins: [5V-IN, RTN-IN]
+    show_pincount: false
+    notes: "Continue from 5V-IN and RTN-IN\non the branch sheet → power.svg\nP01 → HUB-F  ·  P02 → HUB-C\nP03 → HUB-R"
+    bgcolor_title: '#ddeddf'
+
+cables:
+  HK4 input leads:
+    type: Factory flying leads
+    colors: [RD, YE, BK]
+    wirelabels: [Fused constant +12 V, Fused switched +12 V, Ground spade at chassis bolt]
+    show_wirecount: false
+    show_wirenumbers: false
+    bgcolor_title: '#f6e8cf'
+  PS1 input leads:
+    type: Proposed feed pair
+    wirecount: 2
+    wirelabels: [Regulated +5 V, Power return]
+    show_wirecount: false
+    show_wirenumbers: false
+    notes: Lead details TBD
+    bgcolor_title: '#f6e8cf'
+
+connections:
+  - - Civic: [BAT, ACC, CHASSIS]
+    - HK4 input leads: [1, 2, 3]
+    - HK4: [BAT, ACC, GND]
+  # A pin-level mate shows the two power functions, without assuming a
+  # physical cavity number, CC arrangement or accessory-signal assignment.
+  - - HK4 output plug: [VBUS, GND]
+    - -->
+    - USB-C mate: [VBUS, GND]
+  - - USB-C mate: [VBUS, GND]
+    - PS1 input leads: [1, 2]
+    - PS1: [5V-IN, RTN-IN]

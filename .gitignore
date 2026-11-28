@@ -6,3 +6,13 @@ build/
 dist/
 /cardaq.toml
 /captures/
+
+# Oversized local reference copies. Shared hardware docs link to the relevant manufacturer guides.
+/hardware/docs/ACC Hardwire Kit Installation.pdf
+/hardware/docs/adxl345.pdf
+
+# Running WireViz directly on the cable family definitions creates empty exports.
+/hardware/wiring/families.bom.tsv
+/hardware/wiring/families.html
+/hardware/wiring/families.png
+/hardware/wiring/families.svg

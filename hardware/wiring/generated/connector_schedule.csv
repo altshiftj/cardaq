@@ -1,0 +1,244 @@
+endpoint,contact,function,interface,cable,status
+ACC-01,1,GND,Passive 8P8C · ADXL345,W101,PROPOSED
+ACC-01,2,SCL,Passive 8P8C · ADXL345,W101,PROPOSED
+ACC-01,3,GND,Passive 8P8C · ADXL345,W101,PROPOSED
+ACC-01,4,CS,Passive 8P8C · ADXL345,W101,PROPOSED
+ACC-01,5,GND,Passive 8P8C · ADXL345,W101,PROPOSED
+ACC-01,6,SDA,Passive 8P8C · ADXL345,W101,PROPOSED
+ACC-01,7,GND,Passive 8P8C · ADXL345,W101,PROPOSED
+ACC-01,8,VCC,Passive 8P8C · ADXL345,W101,PROPOSED
+ACC-02,1,GND,Passive 8P8C · ADXL345,W102,PROPOSED
+ACC-02,2,SCL,Passive 8P8C · ADXL345,W102,PROPOSED
+ACC-02,3,GND,Passive 8P8C · ADXL345,W102,PROPOSED
+ACC-02,4,CS,Passive 8P8C · ADXL345,W102,PROPOSED
+ACC-02,5,GND,Passive 8P8C · ADXL345,W102,PROPOSED
+ACC-02,6,SDA,Passive 8P8C · ADXL345,W102,PROPOSED
+ACC-02,7,GND,Passive 8P8C · ADXL345,W102,PROPOSED
+ACC-02,8,VCC,Passive 8P8C · ADXL345,W102,PROPOSED
+ACC-03,1,GND,Passive 8P8C · ADXL345,W103,PROPOSED
+ACC-03,2,SCL,Passive 8P8C · ADXL345,W103,PROPOSED
+ACC-03,3,GND,Passive 8P8C · ADXL345,W103,PROPOSED
+ACC-03,4,CS,Passive 8P8C · ADXL345,W103,PROPOSED
+ACC-03,5,GND,Passive 8P8C · ADXL345,W103,PROPOSED
+ACC-03,6,SDA,Passive 8P8C · ADXL345,W103,PROPOSED
+ACC-03,7,GND,Passive 8P8C · ADXL345,W103,PROPOSED
+ACC-03,8,VCC,Passive 8P8C · ADXL345,W103,PROPOSED
+ACC-04,1,GND,Passive 8P8C · ADXL345,W104,PROPOSED
+ACC-04,2,SCL,Passive 8P8C · ADXL345,W104,PROPOSED
+ACC-04,3,GND,Passive 8P8C · ADXL345,W104,PROPOSED
+ACC-04,4,CS,Passive 8P8C · ADXL345,W104,PROPOSED
+ACC-04,5,GND,Passive 8P8C · ADXL345,W104,PROPOSED
+ACC-04,6,SDA,Passive 8P8C · ADXL345,W104,PROPOSED
+ACC-04,7,GND,Passive 8P8C · ADXL345,W104,PROPOSED
+ACC-04,8,VCC,Passive 8P8C · ADXL345,W104,PROPOSED
+ACC-05,1,GND,Passive 8P8C · ADXL345,W105,PROPOSED
+ACC-05,2,SCL,Passive 8P8C · ADXL345,W105,PROPOSED
+ACC-05,3,GND,Passive 8P8C · ADXL345,W105,PROPOSED
+ACC-05,4,CS,Passive 8P8C · ADXL345,W105,PROPOSED
+ACC-05,5,GND,Passive 8P8C · ADXL345,W105,PROPOSED
+ACC-05,6,SDA,Passive 8P8C · ADXL345,W105,PROPOSED
+ACC-05,7,GND,Passive 8P8C · ADXL345,W105,PROPOSED
+ACC-05,8,VCC,Passive 8P8C · ADXL345,W105,PROPOSED
+ACC-06,1,GND,Passive 8P8C · ADXL345,W106,PROPOSED
+ACC-06,2,SCL,Passive 8P8C · ADXL345,W106,PROPOSED
+ACC-06,3,GND,Passive 8P8C · ADXL345,W106,PROPOSED
+ACC-06,4,CS,Passive 8P8C · ADXL345,W106,PROPOSED
+ACC-06,5,GND,Passive 8P8C · ADXL345,W106,PROPOSED
+ACC-06,6,SDA,Passive 8P8C · ADXL345,W106,PROPOSED
+ACC-06,7,GND,Passive 8P8C · ADXL345,W106,PROPOSED
+ACC-06,8,VCC,Passive 8P8C · ADXL345,W106,PROPOSED
+ACC-07,1,GND,Passive 8P8C · ADXL345,W107,PROPOSED
+ACC-07,2,SCL,Passive 8P8C · ADXL345,W107,PROPOSED
+ACC-07,3,GND,Passive 8P8C · ADXL345,W107,PROPOSED
+ACC-07,4,CS,Passive 8P8C · ADXL345,W107,PROPOSED
+ACC-07,5,GND,Passive 8P8C · ADXL345,W107,PROPOSED
+ACC-07,6,SDA,Passive 8P8C · ADXL345,W107,PROPOSED
+ACC-07,7,GND,Passive 8P8C · ADXL345,W107,PROPOSED
+ACC-07,8,VCC,Passive 8P8C · ADXL345,W107,PROPOSED
+ACC-08,1,GND,Passive 8P8C · ADXL345,W108,PROPOSED
+ACC-08,2,SCL,Passive 8P8C · ADXL345,W108,PROPOSED
+ACC-08,3,GND,Passive 8P8C · ADXL345,W108,PROPOSED
+ACC-08,4,CS,Passive 8P8C · ADXL345,W108,PROPOSED
+ACC-08,5,GND,Passive 8P8C · ADXL345,W108,PROPOSED
+ACC-08,6,SDA,Passive 8P8C · ADXL345,W108,PROPOSED
+ACC-08,7,GND,Passive 8P8C · ADXL345,W108,PROPOSED
+ACC-08,8,VCC,Passive 8P8C · ADXL345,W108,PROPOSED
+ACC-09,1,GND,Passive 8P8C · ADXL345,W109,PROPOSED
+ACC-09,2,SCL,Passive 8P8C · ADXL345,W109,PROPOSED
+ACC-09,3,GND,Passive 8P8C · ADXL345,W109,PROPOSED
+ACC-09,4,CS,Passive 8P8C · ADXL345,W109,PROPOSED
+ACC-09,5,GND,Passive 8P8C · ADXL345,W109,PROPOSED
+ACC-09,6,SDA,Passive 8P8C · ADXL345,W109,PROPOSED
+ACC-09,7,GND,Passive 8P8C · ADXL345,W109,PROPOSED
+ACC-09,8,VCC,Passive 8P8C · ADXL345,W109,PROPOSED
+ACC-10,1,GND,Passive 8P8C · ADXL345,W110,PROPOSED
+ACC-10,2,SCL,Passive 8P8C · ADXL345,W110,PROPOSED
+ACC-10,3,GND,Passive 8P8C · ADXL345,W110,PROPOSED
+ACC-10,4,CS,Passive 8P8C · ADXL345,W110,PROPOSED
+ACC-10,5,GND,Passive 8P8C · ADXL345,W110,PROPOSED
+ACC-10,6,SDA,Passive 8P8C · ADXL345,W110,PROPOSED
+ACC-10,7,GND,Passive 8P8C · ADXL345,W110,PROPOSED
+ACC-10,8,VCC,Passive 8P8C · ADXL345,W110,PROPOSED
+HUB-C J1,1,GND,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J1,2,SPI_SCK,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J1,3,GND,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J1,4,SPI_CS,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J1,5,GND,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J1,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J1,7,GND,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J1,8,+3V3,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J1,SH,shield landing,Passive 8P8C · non-Ethernet,W105,PROPOSED
+HUB-C J2,1,GND,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J2,2,SPI_SCK,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J2,3,GND,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J2,4,SPI_CS,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J2,5,GND,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J2,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J2,7,GND,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J2,8,+3V3,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J2,SH,shield landing,Passive 8P8C · non-Ethernet,W106,PROPOSED
+HUB-C J3,1,GND,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J3,2,SPI_SCK,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J3,3,GND,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J3,4,SPI_CS,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J3,5,GND,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J3,6,SPI_SDIO,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J3,7,GND,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J3,8,+3V3,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J3,SH,shield landing,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,1,GND,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,2,SPI_SCK,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,3,GND,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,4,SPI_CS,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,5,GND,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,6,SPI_SDIO,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,7,GND,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,8,+3V3,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J4,SH,shield landing,Passive 8P8C · non-Ethernet,,PROPOSED
+HUB-C J5,1,Analog OUT,Four-pin microphone port · housing TBD,W203,PROPOSED
+HUB-C J5,2,Signal GND,Four-pin microphone port · housing TBD,W203,PROPOSED
+HUB-C J5,3,+3V3,Four-pin microphone port · housing TBD,W203,PROPOSED
+HUB-C J5,4,Power GND,Four-pin microphone port · housing TBD,W203,PROPOSED
+HUB-C J6,1,Analog OUT,Four-pin microphone port · housing TBD,,PROPOSED
+HUB-C J6,2,Signal GND,Four-pin microphone port · housing TBD,,PROPOSED
+HUB-C J6,3,+3V3,Four-pin microphone port · housing TBD,,PROPOSED
+HUB-C J6,4,Power GND,Four-pin microphone port · housing TBD,,PROPOSED
+HUB-C PWR,5V,PWR1 + to VIN (L15),Hub power · housing TBD,P02,PROPOSED
+HUB-C PWR,RTN,PWR1 − to GND (L14 and R14),Hub power · housing TBD,P02,PROPOSED
+HUB-F J1,1,GND,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J1,2,SPI_SCK,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J1,3,GND,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J1,4,SPI_CS,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J1,5,GND,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J1,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J1,7,GND,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J1,8,+3V3,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J1,SH,shield landing,Passive 8P8C · non-Ethernet,W101,PROPOSED
+HUB-F J2,1,GND,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J2,2,SPI_SCK,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J2,3,GND,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J2,4,SPI_CS,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J2,5,GND,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J2,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J2,7,GND,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J2,8,+3V3,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J2,SH,shield landing,Passive 8P8C · non-Ethernet,W102,PROPOSED
+HUB-F J3,1,GND,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J3,2,SPI_SCK,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J3,3,GND,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J3,4,SPI_CS,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J3,5,GND,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J3,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J3,7,GND,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J3,8,+3V3,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J3,SH,shield landing,Passive 8P8C · non-Ethernet,W103,PROPOSED
+HUB-F J4,1,GND,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J4,2,SPI_SCK,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J4,3,GND,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J4,4,SPI_CS,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J4,5,GND,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J4,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J4,7,GND,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J4,8,+3V3,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J4,SH,shield landing,Passive 8P8C · non-Ethernet,W104,PROPOSED
+HUB-F J5,1,Analog OUT,Four-pin microphone port · housing TBD,W201,PROPOSED
+HUB-F J5,2,Signal GND,Four-pin microphone port · housing TBD,W201,PROPOSED
+HUB-F J5,3,+3V3,Four-pin microphone port · housing TBD,W201,PROPOSED
+HUB-F J5,4,Power GND,Four-pin microphone port · housing TBD,W201,PROPOSED
+HUB-F J6,1,Analog OUT,Four-pin microphone port · housing TBD,W202,PROPOSED
+HUB-F J6,2,Signal GND,Four-pin microphone port · housing TBD,W202,PROPOSED
+HUB-F J6,3,+3V3,Four-pin microphone port · housing TBD,W202,PROPOSED
+HUB-F J6,4,Power GND,Four-pin microphone port · housing TBD,W202,PROPOSED
+HUB-F PWR,5V,PWR1 + to VIN (L15),Hub power · housing TBD,P01,PROPOSED
+HUB-F PWR,RTN,PWR1 − to GND (L14 and R14),Hub power · housing TBD,P01,PROPOSED
+HUB-R J1,1,GND,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J1,2,SPI_SCK,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J1,3,GND,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J1,4,SPI_CS,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J1,5,GND,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J1,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J1,7,GND,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J1,8,+3V3,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J1,SH,shield landing,Passive 8P8C · non-Ethernet,W107,PROPOSED
+HUB-R J2,1,GND,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J2,2,SPI_SCK,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J2,3,GND,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J2,4,SPI_CS,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J2,5,GND,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J2,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J2,7,GND,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J2,8,+3V3,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J2,SH,shield landing,Passive 8P8C · non-Ethernet,W108,PROPOSED
+HUB-R J3,1,GND,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J3,2,SPI_SCK,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J3,3,GND,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J3,4,SPI_CS,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J3,5,GND,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J3,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J3,7,GND,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J3,8,+3V3,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J3,SH,shield landing,Passive 8P8C · non-Ethernet,W109,PROPOSED
+HUB-R J4,1,GND,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J4,2,SPI_SCK,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J4,3,GND,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J4,4,SPI_CS,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J4,5,GND,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J4,6,SPI_SDIO,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J4,7,GND,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J4,8,+3V3,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J4,SH,shield landing,Passive 8P8C · non-Ethernet,W110,PROPOSED
+HUB-R J5,1,Analog OUT,Four-pin microphone port · housing TBD,W204,PROPOSED
+HUB-R J5,2,Signal GND,Four-pin microphone port · housing TBD,W204,PROPOSED
+HUB-R J5,3,+3V3,Four-pin microphone port · housing TBD,W204,PROPOSED
+HUB-R J5,4,Power GND,Four-pin microphone port · housing TBD,W204,PROPOSED
+HUB-R J6,1,Analog OUT,Four-pin microphone port · housing TBD,,PROPOSED
+HUB-R J6,2,Signal GND,Four-pin microphone port · housing TBD,,PROPOSED
+HUB-R J6,3,+3V3,Four-pin microphone port · housing TBD,,PROPOSED
+HUB-R J6,4,Power GND,Four-pin microphone port · housing TBD,,PROPOSED
+HUB-R PWR,5V,PWR1 + to VIN (L15),Hub power · housing TBD,P03,PROPOSED
+HUB-R PWR,RTN,PWR1 − to GND (L14 and R14),Hub power · housing TBD,P03,PROPOSED
+MIC-01,OUT,Analog OUT,MAX4466 · functional terminals,W201,PROPOSED
+MIC-01,SIG-RTN,GND,MAX4466 · functional terminals,W201,PROPOSED
+MIC-01,VCC,+3V3,MAX4466 · functional terminals,W201,PROPOSED
+MIC-01,PWR-RTN,GND,MAX4466 · functional terminals,W201,PROPOSED
+MIC-02,OUT,Analog OUT,MAX4466 · functional terminals,W202,PROPOSED
+MIC-02,SIG-RTN,GND,MAX4466 · functional terminals,W202,PROPOSED
+MIC-02,VCC,+3V3,MAX4466 · functional terminals,W202,PROPOSED
+MIC-02,PWR-RTN,GND,MAX4466 · functional terminals,W202,PROPOSED
+MIC-03,OUT,Analog OUT,MAX4466 · functional terminals,W203,PROPOSED
+MIC-03,SIG-RTN,GND,MAX4466 · functional terminals,W203,PROPOSED
+MIC-03,VCC,+3V3,MAX4466 · functional terminals,W203,PROPOSED
+MIC-03,PWR-RTN,GND,MAX4466 · functional terminals,W203,PROPOSED
+MIC-04,OUT,Analog OUT,MAX4466 · functional terminals,W204,PROPOSED
+MIC-04,SIG-RTN,GND,MAX4466 · functional terminals,W204,PROPOSED
+MIC-04,VCC,+3V3,MAX4466 · functional terminals,W204,PROPOSED
+MIC-04,PWR-RTN,GND,MAX4466 · functional terminals,W204,PROPOSED
+PS1,HUB-F 5V,5 V bus via branch fuse,Proposed fused 5 V fanout,P01,PROPOSED
+PS1,HUB-F RTN,Common return bus,Proposed fused 5 V fanout,P01,PROPOSED
+PS1,HUB-C 5V,5 V bus via branch fuse,Proposed fused 5 V fanout,P02,PROPOSED
+PS1,HUB-C RTN,Common return bus,Proposed fused 5 V fanout,P02,PROPOSED
+PS1,HUB-R 5V,5 V bus via branch fuse,Proposed fused 5 V fanout,P03,PROPOSED
+PS1,HUB-R RTN,Common return bus,Proposed fused 5 V fanout,P03,PROPOSED
+PS1,5V-IN,Regulated +5 V,Proposed fused 5 V fanout,PS1 input leads,PROPOSED
+PS1,RTN-IN,Power return,Proposed fused 5 V fanout,PS1 input leads,PROPOSED
+VIOFO HK4,,5 V / 2 A total,Right-angle USB-C plug,,SELECTED

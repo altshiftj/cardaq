@@ -1,0 +1,18 @@
+sheet,cable,family,from_endpoint,to_endpoint,destination_location,length_ft,status
+HUB-F,W101,CBL-A,HUB-F J1,ACC-01,Front-left steering knuckle,8,PROPOSED
+HUB-F,W102,CBL-A,HUB-F J2,ACC-02,Front-right steering knuckle,8,PROPOSED
+HUB-F,W103,CBL-A,HUB-F J3,ACC-03,Engine,5,PROPOSED
+HUB-F,W104,CBL-A,HUB-F J4,ACC-04,CVT housing,5,PROPOSED
+HUB-F,W201,CBL-M,HUB-F J5,MIC-01,Engine compartment,5,PROPOSED
+HUB-F,W202,CBL-M,HUB-F J6,MIC-02,Front wheelhouse/CVT area,8,PROPOSED
+HUB-C,W105,CBL-A,HUB-C J1,ACC-05,Front subframe,6,PROPOSED
+HUB-C,W106,CBL-A,HUB-C J2,ACC-06,Cabin floor/body reference,5,PROPOSED
+HUB-C,W203,CBL-M,HUB-C J5,MIC-03,Cabin,5,PROPOSED
+HUB-R,W107,CBL-A,HUB-R J1,ACC-07,Rear-left knuckle,6,PROPOSED
+HUB-R,W108,CBL-A,HUB-R J2,ACC-08,Rear-right knuckle,6,PROPOSED
+HUB-R,W109,CBL-A,HUB-R J3,ACC-09,"Rear subframe, left",5,PROPOSED
+HUB-R,W110,CBL-A,HUB-R J4,ACC-10,"Rear subframe, right",5,PROPOSED
+HUB-R,W204,CBL-M,HUB-R J5,MIC-04,Rear wheelhouse,6,PROPOSED
+power,P01,CBL-P,PS1,HUB-F PWR,Protected area near firewall,8,PROPOSED
+power,P02,CBL-P,PS1,HUB-C PWR,Under dashboard,4,PROPOSED
+power,P03,CBL-P,PS1,HUB-R PWR,Inside trunk,18,PROPOSED
