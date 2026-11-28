@@ -64,6 +64,8 @@ Each row describes one recorder event. During polling, a single row can hold rep
 | `detail` | Start note, transport error, or reason for stopping. |
 | Measurement columns | Sparse standard readings and Honda-specific fields. The `candidate_` prefix marks provisional identities or scales. |
 
+Both polling profiles count one `reply` per query when at least one expected ECU returns a matching positive response. A matching first frame of a multi-frame response counts even when the recorder cannot decode a measurement. If the only responses are rejections or unrelated frames, the recorder saves them as `adapter_status`. The viewer uses the stored `reply` events to calculate latency, including for older recordings.
+
 The viewer can recover additional standard signals, including fuel mass flow, from the saved raw replies. Keeping the original CSV allows later versions to decode more of the same drive. [Capture decoder](../src/cardaq/pilot_measurements.py) · [Viewer decoder](../src/cardaq/viewer/standard.py)
 
 ## Compare recordings

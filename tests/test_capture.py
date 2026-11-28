@@ -5,7 +5,7 @@ import os
 import re
 import unittest
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -38,6 +38,50 @@ class FakeClock:
 
     def sleep(self, seconds: float) -> None:
         self.now += seconds
+
+
+def test_civic_counts_only_matching_diagnostic_replies(tmp_path, monkeypatch):
+    output = tmp_path / "drive.csv"
+    clock = FakeClock()
+    monkeypatch.setattr("cardaq.capture.monotonic", clock.monotonic)
+    monkeypatch.setattr("cardaq.capture.open_connection", lambda _: nullcontext(None))
+    monkeypatch.setattr("cardaq.capture.discover_standard", lambda *_: _CIVIC_INVENTORY)
+    monkeypatch.setattr("cardaq.capture._read_vehicle", lambda *_: _CIVIC)
+    responses = {
+        b"010C": b"18DAF110 03 7F 01 12",        # Negative RPM reply after the initial read
+        b"010D": b"18DAF11E 03 41 0D 27",        # Valid TCM reply to a functional request
+        b"01A6": b"18DAF110 06 41 A6 00 01 02 03",  # Raw PID without a capture measurement
+        b"010B": b"18DAF122 03 41 0B 40",        # Unrelated responder
+        b"0142": b"18DAF110 04 41 0C 1F 40",     # Different PID
+        b"06A2": b"18DAF110 03 41 A2 00",        # Different service
+        b"222301": b"18DAF11E 04 62 23 22 55",   # Different transmission DID
+        b"222322": b"18DAF110 04 62 23 22 55",   # Correct DID from the wrong ECU
+        b"ATRV": b"12.5V",                        # Adapter voltage
+    }
+
+    def exchange(_port, command, _timeout):
+        if command.startswith(b"AT") and command != b"ATRV":
+            return (b"OK",)
+        clock.sleep(1)
+        if command == b"010C" and clock.now == 1:
+            return (_ENGINE_RUNNING,)
+        if command == b"ATRV":
+            output.with_suffix(".csv.stop").touch()
+        return (responses.get(command, b"NO DATA"),)
+
+    monkeypatch.setattr("cardaq.capture.request", exchange)
+    result = record(SerialSettings("test-serial"), output, 120, notify=lambda _: None)
+    with output.open(encoding="utf-8", newline="") as stream:
+        rows = [row for row in csv.DictReader(stream) if row["request"]]
+    events = {row["reply"]: row["event"] for row in rows}
+    assert events[_ENGINE_RUNNING.decode()] == "reply"
+    assert events["NO DATA"] == "no_data"
+    for command, raw in responses.items():
+        assert events[raw.decode()] == ("reply" if command in (b"010D", b"01A6") else "adapter_status")
+    successes = [row for row in rows if row["event"] == "reply"]
+    assert result.replies == len(successes)
+    reply_times = read_capture_samples(output).reply_times
+    assert set(reply_times) == {int(float(row["elapsed_s"])) for row in successes}
 
 
 class CaptureReplayTests(unittest.TestCase):

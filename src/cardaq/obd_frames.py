@@ -110,9 +110,10 @@ def single_frame_payload(frame: bytes) -> bytes | None:
     return frame[1 : 1 + length]
 
 
-def has_pid_reply(lines: tuple[bytes, ...], pid: int, addresses: set[str], width: int) -> bool:
-    """Recognize a positive Mode 01 single frame or first frame from an advertising ECU."""
-    prefix = bytes((0x41, pid))
+def has_positive_reply(lines: tuple[bytes, ...], command: bytes, addresses: set[str], width: int) -> bool:
+    """Recognize a positive single or first frame for a diagnostic request from an expected ECU."""
+    query = bytes.fromhex(command.decode("ascii"))
+    prefix = bytes((query[0] + 0x40,)) + query[1:]
     for line in lines:
         compact = compact_hex(line)
         parsed = can_frame(compact, width) if compact else None
@@ -120,9 +121,9 @@ def has_pid_reply(lines: tuple[bytes, ...], pid: int, addresses: set[str], width
             continue
         frame = parsed[1]
         payload = single_frame_payload(frame)
-        if payload and len(payload) > 2 and payload.startswith(prefix):
+        if payload and len(payload) > len(prefix) and payload.startswith(prefix):
             return True
-        if (len(frame) == 8 and frame[0] >> 4 == 1 and frame[2:4] == prefix
+        if (len(frame) == 8 and frame[0] >> 4 == 1 and frame[2:].startswith(prefix)
                 and (int.from_bytes(frame[:2], "big") & 0xFFF) > 7):
             return True
     return False

@@ -20,7 +20,7 @@ from serial import Serial
 from .adapter import AdapterError, open_connection, request
 from .config import SerialSettings
 from .obd import SweepResult, discover_standard
-from .obd_frames import has_pid_reply
+from .obd_frames import has_positive_reply
 from .pilot_measurements import MEASUREMENT_COLUMNS, pilot_measurements
 from .vehicle import Vehicle, identify_vehicle
 
@@ -33,6 +33,11 @@ _FAST_REQUESTS = (b"010C", b"010D", b"0167", b"0142")
 _OTHER_REQUESTS = tuple(b"01" + pid for pid in _CIVIC_PIDS if b"01" + pid not in _FAST_REQUESTS)
 _MONITOR_REQUESTS = (b"06A2", b"06A3", b"06A4", b"06A5")
 _TCM_REQUESTS = (b"222301", b"222322")
+_CIVIC_RESPONDERS = {
+    b"01": {"18DAF110", "18DAF11E"},  # Functional engine and transmission requests
+    b"06": {"18DAF110"},              # Engine cylinder monitors
+    b"22": {"18DAF11E"},              # Transmission data identifiers
+}
 _FUNCTIONAL_HEADER = b"ATSH18DB33F1"
 _TCM_HEADER = b"ATSH18DA1EF1"
 _RECONNECT_SECONDS = 1.0
@@ -391,13 +396,11 @@ class _Capture:
         sent = monotonic()
         reply = request(port, command, self.settings.timeout)
         measurements = pilot_measurements(command, reply, standard_width=standard_width)
-        if standard_width is not None and responders is not None:
-            positive = has_pid_reply(reply, int(command[2:], 16), responders, standard_width)
-        else:
-            positive = bool(measurements) or any(line[:2] == b"18" for line in reply)
+        if responders is None:
+            responders = _CIVIC_RESPONDERS.get(command[:2])
         if not reply or reply == (b"NO DATA",):
             event = "no_data"
-        elif positive:
+        elif responders and has_positive_reply(reply, command, responders, standard_width or 8):
             event = "reply"
             self.replies += 1
         else:
